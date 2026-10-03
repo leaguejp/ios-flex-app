@@ -33,7 +33,7 @@
 - (void)run {
  [_fixture ping];id object=[_fixture echo:@"permitted fixture"];long long integer=[_fixture addOne:41];BOOL boolean=[_fixture invert:NO];float f=[_fixture scale:2];double d=[_fixture doubleValue:2.5];long long c=[LXFixture classValue];LXPoint p=[_fixture point:(LXPoint){1,2}];
  BOOL pass=integer==42 && boolean && f==3 && d==5 && c==42 && p.x==2 && [object isEqual:@"permitted fixture"];
- _text.text=[NSString stringWithFormat:@"%@\npings=%lu\nobject=%@\ninteger=%lld BOOL=%d float=%.1f double=%.1f class=%lld struct=(%.1f,%.1f)\n\nOriginal behavior must be identical with hooks enabled or disabled.",pass?@"PASS":@"FAIL",(unsigned long)_fixture.pings,object,integer,boolean,f,d,c,p.x,p.y];
+ _text.text=[NSString stringWithFormat:@"%@\npings=%lu\nobject=%@\ninteger=%lld BOOL=%d float=%.1f double=%.1f class=%lld struct=(%.1f,%.1f)\n\nLogging-only hooks preserve originals. Value patches intentionally change selected fields; disable them to recover this baseline.",pass?@"Original baseline PASS":@"Values differ from original baseline (check active patches)",(unsigned long)_fixture.pings,object,integer,boolean,f,d,c,p.x,p.y];
 }
 @end
 int main(int argc,char **argv) { @autoreleasepool { return UIApplicationMain(argc,argv,nil,NSStringFromClass(LXTestApp.class)); } }
