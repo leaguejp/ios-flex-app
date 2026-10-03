@@ -49,6 +49,13 @@ int main(void) { @autoreleasepool {
  @try { [f addOne:41];assert(0); } @catch(NSException *exception) { assert([exception.name isEqual:@"LXFixtureException"]); }
  assert(![engine configurePatch:@{} key:@"-LXFixture/addOne:"][@"error"]);assert([f addOne:41]==42);
  assert(![engine disableKey:@"-LXFixture/addOne:"][@"error"]);assert([f addOne:41]==42);
+ for(NSString *selector in @[@"invert:",@"scale:",@"doubleValue:",@"echo:",@"classValue"]) assert(![engine enableClass:@"LXFixture" selector:selector classMethod:[selector isEqual:@"classValue"]][@"error"]);
+ assert(![engine configurePatch:@{@"argument":@1} key:@"-LXFixture/invert:"][@"error"]);assert(![f invert:NO]);assert([engine configurePatch:@{@"return":@2} key:@"-LXFixture/invert:"][@"error"]);
+ assert(![engine configurePatch:@{@"argument":@4,@"return":@6.25} key:@"-LXFixture/scale:"][@"error"]);assert([f scale:2]==6.25f);assert([engine configurePatch:@{@"return":@(INFINITY)} key:@"-LXFixture/scale:"][@"error"]);
+ assert(![engine configurePatch:@{@"argument":@3.5} key:@"-LXFixture/doubleValue:"][@"error"]);assert([f doubleValue:1]==7);
+ assert([engine configurePatch:@{@"return":@0} key:@"-LXFixture/echo:"][@"error"]);assert([f echo:marker]==marker);
+ assert(![engine configurePatch:@{@"return":@(LLONG_MAX)} key:@"+LXFixture/classValue"][@"error"]);assert([LXFixture classValue]==LLONG_MAX);
+ [engine disableAll];assert([f invert:NO]);assert([f scale:2]==3);assert([f doubleValue:2.5]==5);assert([LXFixture classValue]==42);
  captured=[engine logs].count;
  assert([f addOne:41]==42);[f ping];assert(f.pings==2);assert([engine logs].count==captured);
  assert(![engine enableClass:@"LXFixture" selector:@"addOne:" classMethod:NO][@"error"]);
@@ -57,5 +64,5 @@ int main(void) { @autoreleasepool {
  Method m=class_getInstanceMethod(LXFixture.class,@selector(addOne:));IMP old=method_setImplementation(m,(IMP)LXForeign);
  assert([engine disableKey:@"-LXFixture/addOne:"][@"error"]);assert(method_getImplementation(m)==(IMP)LXForeign);
  assert([f addOne:1]==100);method_setImplementation(m,[original[@"addOne:"] pointerValue]);(void)old;[engine disableAll];
- puts("runtime: scanner, 7 reviewed signatures, originals, arguments/return logs, restore, duplicate, unsupported and conflict tests passed");
+ puts("runtime: scanner, 7 reviewed signatures, originals, arguments/return logs, restore, duplicate, unsupported, scalar patches/original exceptions and conflict tests passed");
  }return 0; }

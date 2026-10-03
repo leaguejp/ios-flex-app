@@ -18,6 +18,9 @@ static void checkUIKit(LXController *c,LXSession *s) {
  NSArray *profiles=@[@{@"class":@"UIView",@"selector":@"setHidden:",@"classMethod":@NO},@{@"class":@"UIView",@"selector":@"setAlpha:",@"classMethod":@NO},@{@"class":@"UIViewController",@"selector":@"viewWillAppear:",@"classMethod":@NO},@{@"class":@"UIViewController",@"selector":@"viewDidAppear:",@"classMethod":@NO}];
  for(NSDictionary *profile in profiles) request(c,s,@"hookEnable",profile);
  NSDictionary *values=request(c,s,@"fixtureUIKitRun",@{});assert([values[@"hidden"] boolValue] && [values[@"alpha"] doubleValue]==.25);
+ request(c,s,@"patchApply",@{@"key":@"-UIView/setHidden:",@"patch":@{@"argument":@0}});
+ request(c,s,@"patchApply",@{@"key":@"-UIView/setAlpha:",@"patch":@{@"argument":@.75}});
+ values=request(c,s,@"fixtureUIKitRun",@{});assert(![values[@"hidden"] boolValue] && [values[@"alpha"] doubleValue]==.75);
  NSArray *logs=request(c,s,@"logs",@{})[@"logs"];
  for(NSDictionary *profile in profiles) {
   BOOL found=NO;for(NSDictionary *event in logs) if([event[@"class"] isEqual:profile[@"class"]] && [event[@"selector"] isEqual:profile[@"selector"]]) { assert([event[@"arguments"] count]==1 && event[@"return"]==NSNull.null);found=YES; }
@@ -40,7 +43,7 @@ int main(void) { @autoreleasepool {
  if(![bundle isEqual:@"jp.league.runtimeatlas.fixture"]) {
   NSDictionary *denied=response(controller,session,@"hookEnable",@{@"class":@"LXFixture",@"selector":@"ping",@"classMethod":@NO});assert([denied[@"error"][@"code"] isEqual:@"unsupported_signature"]);
   checkUIKit(controller,session);request(controller,session,@"deactivate",@{});
-  puts("Secondary bundle PASS: 4 SDK-reviewed UIKit hooks, originals/arguments/logs/disable; fixture declarations rejected outside fixture bundle");return 0;
+  puts("Secondary bundle PASS: 4 SDK-reviewed UIKit hooks, scalar argument patches, originals/arguments/logs/disable; fixture declarations rejected outside fixture bundle");return 0;
  }
  NSDictionary *images=request(controller,session,@"images",@{});NSString *image;
  for(NSDictionary *item in images[@"images"]) { assert([item[@"provenance"] isEqual:@"Runtime Loaded"]);if([item[@"name"] isEqual:@"AtlasTestTarget"]) image=item[@"path"]; }assert(image);
