@@ -8,10 +8,15 @@
 #include <assert.h>
 #include <math.h>
 #include <limits.h>
+#include <pthread.h>
+#include <dlfcn.h>
 static long long LXForeign(id self,SEL cmd,long long value) { (void)self;(void)cmd;return value+99; }
+static void *LXNoPoolThread(void *context) { LXFixture *fixture=(__bridge LXFixture *)context;for(int i=0;i<1500;i++) assert([fixture addOne:i]==i+1);return NULL; }
 int main(void) { @autoreleasepool {
  LXFixture *f=[LXFixture new];LXHookEngine *engine=[LXHookEngine new];LXScanner *scanner=[LXScanner new];
  NSDictionary *images=[scanner images];assert([images[@"images"] count]>0);
+ void *loaded=dlopen("build/image-fixture.dylib",RTLD_NOW|RTLD_LOCAL);assert(loaded);BOOL foundImage=NO;for(NSDictionary *item in [scanner images][@"images"]) if([item[@"path"] hasSuffix:@"/image-fixture.dylib"]) foundImage=YES;assert(foundImage);
+ assert(!dlclose(loaded));for(NSDictionary *item in [scanner images][@"images"]) assert(![item[@"path"] hasSuffix:@"/image-fixture.dylib"]);
  NSDictionary *methods=[scanner methodsInClass:@"LXFixture"];assert([methods[@"methods"] count]>=9);
  const char *image=class_getImageName(LXFixture.class);assert(image);
  NSDictionary *classes=[scanner classesInImage:@(image) offset:0];assert([classes[@"total"] unsignedIntegerValue]>0);
@@ -66,9 +71,10 @@ int main(void) { @autoreleasepool {
  assert([f addOne:41]==42);[f ping];assert(f.pings==2);assert([engine logs].count==captured);
  assert(![engine enableClass:@"LXFixture" selector:@"addOne:" classMethod:NO][@"error"]);
  for(int i=0;i<1500;i++) assert([f addOne:i]==i+1);assert([engine logs].count<=1000);
+ pthread_t noPool;assert(!pthread_create(&noPool,NULL,LXNoPoolThread,(__bridge void *)f));assert(!pthread_join(noPool,NULL));assert([engine logs].count<=1000);
  dispatch_apply(200,dispatch_get_global_queue(QOS_CLASS_USER_INITIATED,0),^(size_t i) { assert([f addOne:(long long)i]==(long long)i+1); });assert([engine logs].count<=1000);
  Method m=class_getInstanceMethod(LXFixture.class,@selector(addOne:));IMP old=method_setImplementation(m,(IMP)LXForeign);
  assert([engine disableKey:@"-LXFixture/addOne:"][@"error"]);assert(method_getImplementation(m)==(IMP)LXForeign);
  assert([f addOne:1]==100);method_setImplementation(m,[original[@"addOne:"] pointerValue]);(void)old;[engine disableAll];
- puts("runtime: scanner, 7 reviewed signatures, originals, arguments/return logs, restore, duplicate, unsupported, scalar patches/original exceptions and conflict tests passed");
+ puts("runtime: scanner, 7 reviewed signatures, originals, arguments/return logs, restore, duplicate, unsupported, scalar patches/original exceptions, no-pool pthread logging, image unload invalidation and conflict tests passed");
  }return 0; }

@@ -5,9 +5,9 @@
 #include <objc/runtime.h>
 #include <stdatomic.h>
 static atomic_uint LXImageGeneration;
-static void LXAdded(const struct mach_header *header,intptr_t slide) { (void)header;(void)slide;atomic_fetch_add(&LXImageGeneration,1); }
+static void LXImagesChanged(const struct mach_header *header,intptr_t slide) { (void)header;(void)slide;atomic_fetch_add(&LXImageGeneration,1); }
 @implementation LXScanner { unsigned _generation;NSArray *_images;NSMutableDictionary *_classCache; }
-- (instancetype)init { if((self=[super init])) { _classCache=[NSMutableDictionary new];_generation=UINT_MAX;static dispatch_once_t once;dispatch_once(&once,^{ _dyld_register_func_for_add_image(LXAdded); }); }return self; }
+- (instancetype)init { if((self=[super init])) { _classCache=[NSMutableDictionary new];_generation=UINT_MAX;static dispatch_once_t once;dispatch_once(&once,^{ _dyld_register_func_for_add_image(LXImagesChanged);_dyld_register_func_for_remove_image(LXImagesChanged); }); }return self; }
 - (NSDictionary *)images {
  unsigned gen=atomic_load(&LXImageGeneration);
  if(_generation!=gen) {

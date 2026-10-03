@@ -4,12 +4,16 @@
 #import "../shared/LXProtocol.h"
 #include <pthread.h>
 #include <time.h>
+#include <sys/time.h>
 #include <math.h>
+#include <string.h>
 static __thread unsigned LXDepth;
-static uint64_t LXClock(void) { struct timespec ts;clock_gettime(CLOCK_MONOTONIC,&ts);return (uint64_t)ts.tv_sec*1000000000ULL+ts.tv_nsec; }
+static uint64_t LXClock(void) { struct timespec ts={0};if(clock_gettime(CLOCK_MONOTONIC,&ts)) return 0;return (uint64_t)ts.tv_sec*1000000000ULL+ts.tv_nsec; }
+static NSTimeInterval LXWall(void) { struct timeval tv={0};if(gettimeofday(&tv,NULL)) return 0;return (NSTimeInterval)tv.tv_sec+(NSTimeInterval)tv.tv_usec/1000000.0; }
 static NSDictionary *LXObject(id obj) {
  const char *name=obj?class_getName(object_getClass(obj)):NULL;
- return @{ @"pointer":[NSString stringWithFormat:@"%p",(void *)obj],@"runtimeClass":name?@(name):@"nil" };
+ size_t length=name?strnlen(name,256):0;NSString *className=name?[[[NSString alloc] initWithBytes:name length:length encoding:NSUTF8StringEncoding] autorelease]:@"nil";
+ return @{ @"pointer":[NSString stringWithFormat:@"%p",(void *)obj],@"runtimeClass":className ?: @"<invalid UTF-8>",@"classNameTruncated":@(length==256) };
 }
 static id LXScalar(NSNumber *value) {
  if(!isfinite(value.doubleValue)) return @{ @"nonFinite":isnan(value.doubleValue)?@"NaN":value.doubleValue>0?@"+Infinity":@"-Infinity" };
@@ -17,7 +21,7 @@ static id LXScalar(NSNumber *value) {
 }
 @class LXRecord;
 @interface LXHookEngine ()
-- (NSDictionary *)patchForRecord:(LXRecord *)record;
+- (NSDictionary *)copyPatchForRecord:(LXRecord *)record;
 - (void)appendRecord:(LXRecord *)record args:(NSArray *)args result:(id)result start:(uint64_t)start wall:(NSTimeInterval)wall threw:(BOOL)threw;
 @end
 @interface LXRecord : NSObject
@@ -28,36 +32,37 @@ static id LXScalar(NSNumber *value) {
 @property(nonatomic,assign) LXHookEngine *engine;
 @property(nonatomic,copy) NSString *key;
 @property(nonatomic,copy) NSString *encoding;
+@property(nonatomic,copy) NSArray *types;
 @property(nonatomic,copy) NSString *className;
 @property(nonatomic,assign) BOOL enabled;
 @property(nonatomic,copy) NSString *conflict;
 @property(nonatomic,copy) NSDictionary *patch;
 @end
 @implementation LXRecord
-- (void)dealloc { [_key release];[_encoding release];[_className release];[_conflict release];[_patch release];[super dealloc]; }
+- (void)dealloc { [_key release];[_encoding release];[_types release];[_className release];[_conflict release];[_patch release];[super dealloc]; }
 @end
 // Each cast below has an exact compiler-visible, reviewed C prototype. No generic ABI cast.
 static IMP LXCreate(LXRecord *r,NSString *selector) {
  if([selector isEqual:@"ping"]) return imp_implementationWithBlock(^(id obj) {
-  BOOL trace=(LXDepth++==0);uint64_t start=LXClock();NSTimeInterval wall=NSDate.date.timeIntervalSince1970;BOOL threw=YES;
+  BOOL trace=(LXDepth++==0);uint64_t start=LXClock();NSTimeInterval wall=LXWall();BOOL threw=YES;
   @try { ((void(*)(id,SEL))r.original)(obj,r.selector);threw=NO; }
-  @finally { --LXDepth;if(trace) { @try { [r.engine appendRecord:r args:@[] result:NSNull.null start:start wall:wall threw:threw]; } @catch(NSException *e) { (void)e; } } }
+  @finally { --LXDepth;if(trace) { @autoreleasepool { @try { [r.engine appendRecord:r args:@[] result:NSNull.null start:start wall:wall threw:threw]; } @catch(NSException *e) { (void)e; } } } }
  });
  if([selector isEqual:@"classValue"]) return imp_implementationWithBlock(^long long(id obj) {
-  BOOL trace=(LXDepth++==0);uint64_t start=LXClock();NSTimeInterval wall=NSDate.date.timeIntervalSince1970;BOOL threw=YES;long long value=0;
-  @try { value=((long long(*)(id,SEL))r.original)(obj,r.selector);threw=NO;NSDictionary *patch=[r.engine patchForRecord:r];if(patch[@"return"]) value=[patch[@"return"] longLongValue];return value; }
-  @finally { --LXDepth;if(trace) { @try { [r.engine appendRecord:r args:@[] result:@(value) start:start wall:wall threw:threw]; } @catch(NSException *e) { (void)e; } } }
+  BOOL trace=(LXDepth++==0);uint64_t start=LXClock();NSTimeInterval wall=LXWall();BOOL threw=YES;long long value=0;NSDictionary *patch=[r.engine copyPatchForRecord:r];
+  @try { value=((long long(*)(id,SEL))r.original)(obj,r.selector);threw=NO;if(patch[@"return"]) value=[patch[@"return"] longLongValue];return value; }
+  @finally { --LXDepth;if(trace) { @autoreleasepool { @try { [r.engine appendRecord:r args:@[] result:@(value) start:start wall:wall threw:threw]; } @catch(NSException *e) { (void)e; } } }[patch release]; }
  });
  if([selector isEqual:@"echo:"]) return imp_implementationWithBlock(^id(id obj,id arg) {
-  BOOL trace=(LXDepth++==0);uint64_t start=LXClock();NSTimeInterval wall=NSDate.date.timeIntervalSince1970;BOOL threw=YES;id value=nil;
+  BOOL trace=(LXDepth++==0);uint64_t start=LXClock();NSTimeInterval wall=LXWall();BOOL threw=YES;id value=nil;
   @try { value=((id(*)(id,SEL,id))r.original)(obj,r.selector,arg);threw=NO;return value; }
-  @finally { --LXDepth;if(trace) { @try { [r.engine appendRecord:r args:@[LXObject(arg)] result:LXObject(value) start:start wall:wall threw:threw]; } @catch(NSException *e) { (void)e; } } }
+  @finally { --LXDepth;if(trace) { @autoreleasepool { @try { [r.engine appendRecord:r args:@[LXObject(arg)] result:LXObject(value) start:start wall:wall threw:threw]; } @catch(NSException *e) { (void)e; } } } }
  });
 #define LX_SCALAR(SELECTOR,TYPE,ACCESSOR) \
  if([selector isEqual:@SELECTOR]) return imp_implementationWithBlock(^TYPE(id obj,TYPE arg) { \
- BOOL trace=(LXDepth++==0);uint64_t start=LXClock();NSTimeInterval wall=NSDate.date.timeIntervalSince1970;BOOL threw=YES;TYPE value=0;NSDictionary *patch=[r.engine patchForRecord:r];if(patch[@"argument"]) arg=(TYPE)[patch[@"argument"] ACCESSOR]; \
+ BOOL trace=(LXDepth++==0);uint64_t start=LXClock();NSTimeInterval wall=LXWall();BOOL threw=YES;TYPE value=0;NSDictionary *patch=[r.engine copyPatchForRecord:r];if(patch[@"argument"]) arg=(TYPE)[patch[@"argument"] ACCESSOR]; \
  @try { value=((TYPE(*)(id,SEL,TYPE))r.original)(obj,r.selector,arg);threw=NO;if(patch[@"return"]) value=(TYPE)[patch[@"return"] ACCESSOR];return value; } \
- @finally { --LXDepth;if(trace) { @try { [r.engine appendRecord:r args:@[LXScalar(@(arg))] result:LXScalar(@(value)) start:start wall:wall threw:threw]; } @catch(NSException *e) { (void)e; } } } \
+ @finally { --LXDepth;if(trace) { @autoreleasepool { @try { [r.engine appendRecord:r args:@[LXScalar(@(arg))] result:LXScalar(@(value)) start:start wall:wall threw:threw]; } @catch(NSException *e) { (void)e; } } }[patch release]; } \
  });
  LX_SCALAR("addOne:",long long,longLongValue)
  LX_SCALAR("invert:",BOOL,boolValue)
@@ -66,9 +71,9 @@ static IMP LXCreate(LXRecord *r,NSString *selector) {
 #undef LX_SCALAR
 #define LX_VOID_SCALAR(SELECTOR,TYPE) \
  if([selector isEqual:@SELECTOR]) return imp_implementationWithBlock(^(id obj,TYPE arg) { \
- BOOL trace=(LXDepth++==0);uint64_t start=LXClock();NSTimeInterval wall=NSDate.date.timeIntervalSince1970;BOOL threw=YES;NSDictionary *patch=[r.engine patchForRecord:r];if(patch[@"argument"]) arg=(TYPE)[patch[@"argument"] doubleValue]; \
+ BOOL trace=(LXDepth++==0);uint64_t start=LXClock();NSTimeInterval wall=LXWall();BOOL threw=YES;NSDictionary *patch=[r.engine copyPatchForRecord:r];if(patch[@"argument"]) arg=(TYPE)[patch[@"argument"] doubleValue]; \
  @try { ((void(*)(id,SEL,TYPE))r.original)(obj,r.selector,arg);threw=NO; } \
- @finally { --LXDepth;if(trace) { @try { [r.engine appendRecord:r args:@[LXScalar(@(arg))] result:NSNull.null start:start wall:wall threw:threw]; } @catch(NSException *e) { (void)e; } } } \
+ @finally { --LXDepth;if(trace) { @autoreleasepool { @try { [r.engine appendRecord:r args:@[LXScalar(@(arg))] result:NSNull.null start:start wall:wall threw:threw]; } @catch(NSException *e) { (void)e; } } }[patch release]; } \
  });
  LX_VOID_SCALAR("setHidden:",BOOL)
  LX_VOID_SCALAR("viewWillAppear:",BOOL)
@@ -94,7 +99,7 @@ static IMP LXCreate(LXRecord *r,NSString *selector) {
   for(unsigned i=0;i<count;i++) if(own[i]==method) owned=YES;free(own);
   if(!owned) return @{ @"error":LXError(@"inherited_method",@"Only methods declared on this class can be hooked") };
   LXRecord *record=[[[LXRecord alloc] init] autorelease];record.original=method_getImplementation(method);record.method=method;
-  record.selector=sel;record.engine=self;record.key=key;record.encoding=encoding;record.className=name;
+  record.selector=sel;record.engine=self;record.key=key;record.encoding=encoding;record.types=LXDescribeEncoding(encoding);record.className=name;
   record.replacement=LXCreate(record,selector);if(!record.replacement) return @{ @"error":LXError(@"unsupported_signature",@"No typed wrapper") };
   // Keep record and trampoline alive: an in-flight call or third-party chain may still reference it.
   [_retired addObject:record];_records[key]=record;
@@ -106,8 +111,8 @@ static IMP LXCreate(LXRecord *r,NSString *selector) {
   record.enabled=YES;return @{ @"key":key,@"enabled":@YES };
  } @finally { [_lock unlock]; }
 }
-- (NSDictionary *)patchForRecord:(LXRecord *)record {
- [_lock lock];NSDictionary *copy=record.enabled?[[record.patch copy] autorelease]:nil;[_lock unlock];return copy ?: @{};
+- (NSDictionary *)copyPatchForRecord:(LXRecord *)record {
+ [_lock lock];NSDictionary *copy=record.enabled?[record.patch copy]:nil;[_lock unlock];return copy;
 }
 - (NSDictionary *)configurePatch:(NSDictionary *)patch key:(NSString *)key {
  [_lock lock];@try {
@@ -152,7 +157,7 @@ static IMP LXCreate(LXRecord *r,NSString *selector) {
  uint64_t elapsed=LXClock()-start;[_lock lock];@try {
  if(r.enabled) {
   uint64_t thread=0;pthread_threadid_np(NULL,&thread);
-  NSDictionary *event=@{@"hook":r.key,@"class":r.className,@"selector":NSStringFromSelector(r.selector),@"encoding":r.encoding,@"types":LXDescribeEncoding(r.encoding),@"time":@(wall),@"thread":@(thread),@"durationNs":@(elapsed),@"arguments":args,@"return":threw?NSNull.null:result ?: NSNull.null,@"exception":@(threw),@"patch":r.patch ?: @{}};
+  NSDictionary *event=@{@"hook":r.key,@"class":r.className,@"selector":NSStringFromSelector(r.selector),@"encoding":r.encoding,@"types":r.types,@"time":@(wall),@"thread":@(thread),@"durationNs":@(elapsed),@"arguments":args,@"return":threw?NSNull.null:result ?: NSNull.null,@"exception":@(threw),@"patch":r.patch ?: @{}};
   NSData *data=[NSJSONSerialization dataWithJSONObject:event options:0 error:nil];
   if(data) { [_events addObject:event];_bytes+=data.length;
    while(_events.count>1000 || _bytes>1024*1024) { _bytes-=[NSJSONSerialization dataWithJSONObject:_events[0] options:0 error:nil].length;[_events removeObjectAtIndex:0]; } }
