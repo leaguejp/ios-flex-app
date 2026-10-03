@@ -39,6 +39,8 @@ int main(void) { @autoreleasepool {
  NSDate *deadline=[NSDate dateWithTimeIntervalSinceNow:30];while(!controller.sessions.count && deadline.timeIntervalSinceNow>0) pump(.01);assert(controller.sessions.count==1);
  LXSession *session=controller.sessions[0];assert([session.identity[@"bundle"] isEqual:bundle]);
  NSString *nonce=NSUUID.UUID.UUIDString;NSDictionary *ping=request(controller,session,@"ping",@{@"nonce":nonce});assert([ping[@"echo"][@"nonce"] isEqual:nonce]);
+ NSDictionary *presenter=request(controller,session,@"fixturePresenterCheck",@{});assert([presenter[@"available"] boolValue] && [presenter[@"gestureInstalled"] boolValue]);assert([presenter[@"sceneCount"] unsignedIntegerValue]==0);
+ puts("Legacy UIKit presenter PASS: app delegate window fallback and pairing gesture installed with no connected scenes");
  request(controller,session,@"activate",@{});assert(session.active);
  if(![bundle isEqual:@"jp.league.runtimeatlas.fixture"]) {
   NSDictionary *denied=response(controller,session,@"hookEnable",@{@"class":@"LXFixture",@"selector":@"ping",@"classMethod":@NO});assert([denied[@"error"][@"code"] isEqual:@"unsupported_signature"]);

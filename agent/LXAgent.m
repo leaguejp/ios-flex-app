@@ -39,7 +39,9 @@
 - (UIViewController *)presenter {
  for(UIScene *scene in UIApplication.sharedApplication.connectedScenes) if([scene isKindOfClass:UIWindowScene.class] && scene.activationState==UISceneActivationStateForegroundActive)
   for(UIWindow *window in ((UIWindowScene *)scene).windows) if(window.isKeyWindow) { UIViewController *vc=window.rootViewController;while(vc.presentedViewController) vc=vc.presentedViewController;return vc; }
- return nil;
+ id<UIApplicationDelegate> delegate=UIApplication.sharedApplication.delegate;
+ UIViewController *vc=[delegate respondsToSelector:@selector(window)]?delegate.window.rootViewController:nil;
+ while(vc.presentedViewController) vc=vc.presentedViewController;return vc;
 }
 - (void)installPairingGesture {
  dispatch_async(dispatch_get_main_queue(),^{
@@ -122,6 +124,9 @@
    else if([command isEqual:@"logs"]) out=@{@"logs":[_hooks logs]};
    else if([command isEqual:@"static"]) out=[_static analyzeBundle:NSBundle.mainBundle.bundlePath];
 #if LX_FIXTURE_AUTOMATION
+   else if([command isEqual:@"fixturePresenterCheck"]) {
+    [self installPairingGesture];__block NSDictionary *result;dispatch_sync(dispatch_get_main_queue(),^{ UIViewController *presenter=[self presenter];result=@{@"available":@(presenter!=nil),@"gestureInstalled":@(objc_getAssociatedObject(presenter.view,@selector(installPairingGesture))!=nil),@"sceneCount":@(UIApplication.sharedApplication.connectedScenes.count)}; });out=result;
+   }
    else if([command isEqual:@"fixtureRun"]) {
     LXFixture *fixture=[LXFixture new];[fixture ping];id marker=[NSObject new];id echoed=[fixture echo:marker];
     out=@{@"pings":@(fixture.pings),@"objectIdentity":@(echoed==marker),@"integer":@([fixture addOne:41]),@"bool":@([fixture invert:NO]),@"float":@([fixture scale:2]),@"double":@([fixture doubleValue:2.5]),@"classValue":@([LXFixture classValue])};
