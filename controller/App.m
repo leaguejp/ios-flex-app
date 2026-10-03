@@ -22,7 +22,7 @@
  if(!rows.count) { UILabel *label=[UILabel new];label.text=@"No paired Agents\n\nChoose Pair to copy a session token.\nOpen an authorized target app,\nthen tap three times with three fingers.\n\nReturn here to select and activate it.";label.numberOfLines=0;label.textAlignment=NSTextAlignmentCenter;label.textColor=UIColor.secondaryLabelColor;label.font=[UIFont systemFontOfSize:15];_root.tableView.backgroundView=label; }else _root.tableView.backgroundView=nil;
 }
 - (void)request:(NSString *)command payload:(NSDictionary *)payload session:(LXSession *)s view:(UIViewController *)view done:(void (^)(NSDictionary *))done {
- [_controller request:command payload:payload session:s completion:^(NSDictionary *r) { if(r[@"error"] && r[@"error"]!=NSNull.null) LXAlert(view,[NSString stringWithFormat:@"%@: %@",r[@"error"][@"code"],r[@"error"][@"detail"]]);else done(r[@"payload"] ?: @{}); }];
+ [_controller request:command payload:payload session:s completion:^(NSDictionary *r) { if(r[@"error"] && r[@"error"]!=NSNull.null) LXAlert(view,[NSString stringWithFormat:@"%@: %@",r[@"error"][@"code"],r[@"error"][@"detail"]]);else { done(r[@"payload"] ?: @{});if(r[@"persistenceWarning"]) LXAlert(view,r[@"persistenceWarning"]); } }];
 }
 - (void)target:(LXSession *)s {
  LXBrowser *menu=[LXBrowser new];menu.title=s.identity[@"bundle"];

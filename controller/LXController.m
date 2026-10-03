@@ -65,7 +65,7 @@
     NSMutableDictionary *desired=[state[@"desiredHooks"] mutableCopy] ?: [NSMutableDictionary new];
     NSString *key=response[@"payload"][@"key"];if(key) desired[key]=@{ @"enabled":response[@"payload"][@"enabled"] ?: @NO,@"request":payload ?: @{} };state[@"desiredHooks"]=desired;
    }
-   state[@"autoRestoreHooks"]=@NO;[weak.store save:state bundle:bundle];
+   state[@"autoRestoreHooks"]=@NO;if(![weak.store save:state bundle:bundle]) { NSMutableDictionary *warning=[response mutableCopy];warning[@"persistenceWarning"]=@"Per-bundle state could not be saved; verify writable application documents directory";response=warning; }
   }
   completion(response);
  };
