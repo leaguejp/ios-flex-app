@@ -1,5 +1,6 @@
 #import <Foundation/Foundation.h>
 #define LXProtocolVersion 1
+#define LXIPCNamespace @"jp.league.runtimeatlas.ipc"
 #define LXPort 49371
 #define LXMaxFrame (4 * 1024 * 1024)
 NSDictionary *LXMessage(NSString *command, NSDictionary *payload);

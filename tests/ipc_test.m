@@ -6,6 +6,7 @@
 int main(int argc,char **argv) { @autoreleasepool {
  assert(!LXValidate(@{}));NSMutableDictionary *bad=[LXMessage(@"ping",@{}) mutableCopy];bad[@"version"]=@999;assert(!LXValidate(bad));
  NSString *token=LXNewToken();assert(token.length==32);NSDictionary *body=@{@"nonce":@"abc"};NSString *proof=LXProof(token,@"client",body);assert(LXProofMatches(proof,proof));assert(!LXProofMatches(proof,LXProof(token,@"server",body)));assert(!LXProofMatches(proof,LXProof(LXNewToken(),@"client",body)));assert(!LXProofMatches(proof,@"invalid"));
+ bad=[LXMessage(@"ping",@{}) mutableCopy];bad[@"namespace"]=@"another.app";assert(!LXValidate(bad));
  dispatch_semaphore_t done=dispatch_semaphore_create(0);
  if(argc>1 && !strcmp(argv[1],"peer")) {
   LXChannel *c=[LXChannel connectLoopback:nil];assert(c);__weak LXChannel *weak=c;

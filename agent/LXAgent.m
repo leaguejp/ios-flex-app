@@ -38,7 +38,7 @@
   (void)action;NSString *token=alert.textFields.firstObject.text;
   NSCharacterSet *hex=[NSCharacterSet characterSetWithCharactersInString:@"0123456789abcdef"];
   if(token.length!=32 || [token rangeOfCharacterFromSet:hex.invertedSet].location!=NSNotFound) return;
-  dispatch_async(self->_queue,^{ self->_token=token;[self connect]; });
+  dispatch_async(self->_queue,^{ if(self->_channel) [self disconnect:self->_channel];self->_token=token;[self connect]; });
  }]];[presenter presentViewController:alert animated:YES completion:nil];
 }
 - (NSDictionary *)identity { return @{@"pid":@(getpid()),@"bundle":NSBundle.mainBundle.bundleIdentifier ?: @"unknown",@"executable":NSBundle.mainBundle.executablePath ?: @"",@"bundlePath":NSBundle.mainBundle.bundlePath,@"active":@(_active)}; }
@@ -48,7 +48,10 @@
 - (void)connect {
  if(_connecting || (_channel && !_channel.closed)) return;_connecting=YES;
  NSError *error=nil;LXChannel *channel=[LXChannel connectLoopback:&error];_connecting=NO;
- if(!channel) { _token=nil;return; }_channel=channel;
+ if(!channel) { _token=nil;dispatch_async(dispatch_get_main_queue(),^{
+  UIViewController *presenter=[self presenter];if(!presenter || presenter.presentedViewController) return;
+  UIAlertController *alert=[UIAlertController alertControllerWithTitle:@"Runtime Atlas connection failed" message:error.localizedDescription ?: @"Open Controller and pair again" preferredStyle:UIAlertControllerStyleAlert];[alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];[presenter presentViewController:alert animated:YES completion:nil];
+ });return; }_channel=channel;
  __weak LXAgent *weak=self;__weak LXChannel *weakChannel=channel;
  channel.received=^(NSDictionary *m) { LXAgent *agent=weak;if(agent) dispatch_async(agent->_queue,^{ [agent handle:m channel:weakChannel]; }); };
  channel.disconnected=^{ LXAgent *agent=weak;if(agent) dispatch_async(agent->_queue,^{ [agent disconnect:weakChannel]; }); };
