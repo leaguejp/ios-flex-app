@@ -9,7 +9,7 @@ esac
 : "${THEOS:?Set THEOS to pinned scheme-specific checkout}"
 mkdir -p artifacts/"$scheme"
 make clean THEOS_PACKAGE_SCHEME="$scheme"
-make package THEOS_PACKAGE_SCHEME="$scheme" ARCHS=arm64 THEOS_PACKAGE_COMPRESSION_TYPE=gzip 2>&1 | tee artifacts/"$scheme"/build.log
+make package THEOS_PACKAGE_SCHEME="$scheme" ARCHS=arm64 THEOS_PLATFORM_DEB_COMPRESSION_TYPE=gzip 2>&1 | tee artifacts/"$scheme"/build.log
 found=0
 for package in packages/*"$expected".deb; do
  [[ -f "$package" ]] || continue

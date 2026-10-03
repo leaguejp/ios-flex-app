@@ -4,6 +4,9 @@ THEOS_PACKAGE_SCHEME ?= rootless
 DEBUG = 0
 FINALPACKAGE = 1
 include $(THEOS)/makefiles/common.mk
+# Current Xcode ld rejects the intent of Theos' obsolete duplicate-symbol suppression.
+# Remove the option, preserving normal duplicate-symbol errors (do not suppress warnings).
+_THEOS_TARGET_LDFLAGS := $(filter-out -multiply_defined suppress,$(_THEOS_TARGET_LDFLAGS))
 
 APPLICATION_NAME = RuntimeAtlas AtlasTestTarget
 RuntimeAtlas_FILES = controller/App.m controller/LXController.m controller/LXStore.m ui/LXBrowser.m shared/LXProtocol.m shared/LXChannel.m
