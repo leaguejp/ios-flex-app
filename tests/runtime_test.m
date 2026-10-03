@@ -20,6 +20,8 @@ int main(void) { @autoreleasepool {
  NSDictionary *methods=[scanner methodsInClass:@"LXFixture"];assert([methods[@"methods"] count]>=9);
  const char *image=class_getImageName(LXFixture.class);assert(image);
  NSDictionary *classes=[scanner classesInImage:@(image) offset:0];assert([classes[@"total"] unsignedIntegerValue]>0);
+ Class generated=objc_allocateClassPair(NSObject.class,"LXRuntimeGeneratedFixture",0);assert(generated);objc_registerClassPair(generated);assert(!class_getImageName(generated));BOOL foundGenerated=NO;
+ for(NSDictionary *record in [scanner classesInImage:@"runtime://generated" offset:0][@"classes"]) if([record[@"name"] isEqual:@"LXRuntimeGeneratedFixture"]) { foundGenerated=YES;assert([record[@"image"] isEqual:@""] && [record[@"source"] isEqual:@"Runtime Generated"]); }assert(foundGenerated);objc_disposeClassPair(generated);
  NSDictionary *staticResult=[[LXStaticAnalyzer new] analyzeBundle:@(image).stringByDeletingLastPathComponent];assert([staticResult[@"provenance"] isEqual:@"Static Only"]);assert([staticResult[@"images"] count]>0);
  assert([[[LXStaticAnalyzer new] analyzeBundle:@"/nonexistent-runtimeatlas-test-bundle"][@"errors"] count]>0);
  NSURL *temporary=[NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:NSUUID.UUID.UUIDString] isDirectory:YES];assert([NSFileManager.defaultManager createDirectoryAtURL:temporary withIntermediateDirectories:YES attributes:nil error:nil]);

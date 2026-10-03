@@ -20,6 +20,15 @@ static void LXImagesChanged(const struct mach_header *header,intptr_t slide) { (
 }
 - (NSDictionary *)classesInImage:(NSString *)image offset:(NSUInteger)offset {
  [self images];NSArray *cached=_classCache[image];
+ if([image isEqual:@"runtime://generated"]) {
+  // A class without an image is registered runtime information, not a Mach-O file.
+  unsigned count=0;Class *classes=objc_copyClassList(&count);NSMutableArray *rows=[NSMutableArray new];
+  for(unsigned i=0;i<count;i++) { Class cls=classes[i];if(class_getImageName(cls)) continue;const char *raw=class_getName(cls);NSString *name=raw?@(raw):nil;if(!name) continue;Class parent=class_getSuperclass(cls);
+   [rows addObject:@{@"name":name,@"superclass":parent?@(class_getName(parent)):@"",@"image":@"",@"source":@"Runtime Generated",@"provenance":@"Runtime Loaded"}];
+  }free(classes);
+  cached=[rows sortedArrayUsingComparator:^NSComparisonResult(NSDictionary *a,NSDictionary *b) { return [a[@"name"] compare:b[@"name"]]; }];
+ }
+
  if(!cached) {
   unsigned count=0;const char **names=objc_copyClassNamesForImage(image.UTF8String,&count);NSMutableArray *out=[NSMutableArray new];
   for(unsigned i=0;i<count;i++) { Class cls=objc_getClass(names[i]);Class parent=class_getSuperclass(cls);

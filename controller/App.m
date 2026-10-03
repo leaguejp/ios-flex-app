@@ -87,7 +87,8 @@
 }
 - (void)images:(NSArray *)images session:(LXSession *)s parent:(UIViewController *)parent runtime:(BOOL)runtime {
  LXBrowser *view=[LXBrowser new];view.title=runtime?@"Runtime Loaded":@"Static Only";NSMutableArray *rows=[NSMutableArray new];
- for(NSDictionary *image in images) [rows addObject:@{@"title":image[@"name"],@"subtitle":[NSString stringWithFormat:@"%@ · %@",image[@"provenance"],image[@"path"]],@"image":image}];view.rows=rows;__weak LXApp *weak=self;__weak LXBrowser *weakView=view;
+ for(NSDictionary *image in images) [rows addObject:@{@"title":image[@"name"],@"subtitle":[NSString stringWithFormat:@"%@ · %@",image[@"provenance"],image[@"path"]],@"image":image}];if(runtime) [rows addObject:@{@"title":@"Runtime Generated classes",@"subtitle":@"Registered classes without a Mach-O image",@"image":@{@"name":@"Runtime Generated",@"path":@"runtime://generated",@"kind":@"virtualClassGroup"}}];
+ view.rows=rows;__weak LXApp *weak=self;__weak LXBrowser *weakView=view;
  view.selected=^(NSDictionary *row) { NSDictionary *image=row[@"image"];if(!runtime) { LXShowJSON(weakView,@"Static Only metadata",image);return; }
   LXBrowser *classes=[LXBrowser new];classes.title=image[@"name"];[weakView.navigationController pushViewController:classes animated:YES];[weak classes:image[@"path"] offset:0 accumulated:@[] session:s view:classes];
  };[parent.navigationController pushViewController:view animated:YES];
