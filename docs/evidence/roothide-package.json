@@ -1,0 +1,87 @@
+{
+  "package": {
+    "Package": "jp.league.runtimeatlas",
+    "Name": "Runtime Atlas",
+    "Description": "Independent runtime inspector and reviewed Objective-C hook test workbench",
+    "Maintainer": "leaguejp",
+    "Author": "leaguejp",
+    "Section": "Development",
+    "Depends": "firmware (>= 15.0), ellekit",
+    "Architecture": "iphoneos-arm64e",
+    "Version": "0.1.0",
+    "Installed-Size": "360"
+  },
+  "scheme": "roothide",
+  "members": [
+    "debian-binary",
+    "control.tar.gz",
+    "data.tar.gz"
+  ],
+  "compression": "gzip",
+  "tar": "ustar (every header checked)",
+  "control_headers": [
+    ".",
+    "control",
+    "postinst",
+    "postrm"
+  ],
+  "data_headers": [
+    ".",
+    "Applications",
+    "AtlasTestTarget.app",
+    "AtlasTestTarget",
+    "Icon.png",
+    "Icon@2x.png",
+    "Icon@3x.png",
+    "Info.plist",
+    "RuntimeAtlas.app",
+    "Icon.png",
+    "Icon@2x.png",
+    "Icon@3x.png",
+    "Info.plist",
+    "RuntimeAtlas",
+    "Library",
+    "MobileSubstrate",
+    "DynamicLibraries",
+    "RuntimeAtlasAgent.dylib",
+    "RuntimeAtlasAgent.plist"
+  ],
+  "binaries": {
+    "Applications/AtlasTestTarget.app/AtlasTestTarget": {
+      "cpu": "arm64",
+      "dependencies": [
+        "/usr/lib/libobjc.A.dylib",
+        "/System/Library/Frameworks/Foundation.framework/Foundation",
+        "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+        "/System/Library/Frameworks/UIKit.framework/UIKit",
+        "/usr/lib/libSystem.B.dylib"
+      ],
+      "rpaths": [],
+      "code_signature": true
+    },
+    "Applications/RuntimeAtlas.app/RuntimeAtlas": {
+      "cpu": "arm64",
+      "dependencies": [
+        "/usr/lib/libobjc.A.dylib",
+        "/System/Library/Frameworks/Foundation.framework/Foundation",
+        "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+        "/System/Library/Frameworks/UIKit.framework/UIKit",
+        "/usr/lib/libSystem.B.dylib"
+      ],
+      "rpaths": [],
+      "code_signature": true
+    },
+    "Library/MobileSubstrate/DynamicLibraries/RuntimeAtlasAgent.dylib": {
+      "cpu": "arm64",
+      "dependencies": [
+        "/usr/lib/libobjc.A.dylib",
+        "/System/Library/Frameworks/Foundation.framework/Foundation",
+        "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+        "/System/Library/Frameworks/UIKit.framework/UIKit",
+        "/usr/lib/libSystem.B.dylib"
+      ],
+      "rpaths": [],
+      "code_signature": true
+    }
+  }
+}

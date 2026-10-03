@@ -2,7 +2,7 @@
 
 Independent Theos Controller application + lightweight injected Agent for authorized Objective-C inspection. Unique IDs: package `jp.league.runtimeatlas`, Controller `jp.league.runtimeatlas.controller`, fixture `jp.league.runtimeatlas.fixture`. No FLEX/libFLEX code or link dependency. Target: iPhone 11, iOS 15.5, Dopamine; RootHide has a separate build path.
 
-**Status:** implemented MVP; build and host test results are tracked in [docs/validation.md](docs/validation.md). An iOS sandbox IPC round trip and jailbreak installation must pass the device gate before claiming device readiness. No physical device is connected to the development environment.
+**Status:** implemented MVP; rootless/RootHide builds, actual deb inspection, host tests and real Agent/Controller integration in iOS Simulator passed. Evidence is in [docs/validation.md](docs/validation.md). Physical iOS sandbox IPC and jailbreak installation must pass the device gate before claiming device readiness. No connected iPhone or development provisioning is available in this environment. Arbitrary-app hooks remain unavailable until their declarations are reviewed; see the support matrix.
 
 ## Build
 
@@ -19,7 +19,7 @@ bash scripts/bootstrap.sh roothide
 bash scripts/build.sh roothide
 ```
 
-GitHub Actions runs both schemes, production Objective-C host tests, sanitizers, deb inspection and artifact upload. Theos revisions are pinned in `scripts/bootstrap.sh`; submodules inherit fixed revisions. Official runner Xcode SDK is used. Xcode version is recorded by CI build log; reproducing bit-identical binaries also requires the same Xcode. Mach-O code is arm64; **Debian** architectures differ: rootless `iphoneos-arm64`, RootHide `iphoneos-arm64e`.
+GitHub Actions runs both schemes, production Objective-C host tests, sanitizers, deb inspection, native Simulator integration and artifact upload. Theos revisions are pinned in `scripts/bootstrap.sh`; submodules inherit fixed revisions. Official runner Xcode SDK is used. Runner image/version and software manifest are recorded in CI setup logs; reproducing bit-identical binaries also requires the same Xcode. Mach-O code is arm64; **Debian** architectures differ: rootless `iphoneos-arm64`, RootHide `iphoneos-arm64e`.
 
 Install the matching artifact via Sileo/Zebra or `dpkg -i` in the appropriate jailbreak shell. Enable TestTarget/application injection in your jailbreak manager, then relaunch the target. The package's maintainer script resolves `uicache` from the active bootstrap PATH and refreshes icons; if unavailable, run the jailbreak's `uicache -a` manually. Controller and Atlas TestTarget appear on the home screen. Do not install the RootHide package into ordinary Dopamine. Only one variant should be installed at a time.
 
