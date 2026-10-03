@@ -1,6 +1,10 @@
-Build source 614b9d2b22b3f2923a71313d1d24414ebafbfe80
-CI run 37139670215: both jobs SUCCESS
+Build source a9ba29e14ab7dfcea9facd2ca6e57161b0db9d70
+CI run 37146396814: both jobs SUCCESS
+runtime: scanner, 7 reviewed signatures, originals, arguments/return logs, restore, duplicate, unsupported, scalar patches/original exceptions, no-pool pthread logging, image unload invalidation and conflict tests passed
+Store/Controller: malformed saved JSON, bounded reads, malformed result collections/provenance and nonadvancing pagination rejected without exceptions
+UIKit presenter PASS: App Delegate window lookup and pairing gesture; connected scenes=1 (not proof of a scene-free physical device)
 Simulator integration PASS: scalar patches, persisted launch restoration, actual Agent, Controller sessions, IPC, loaded images/classes/methods, 7 hooks/originals/logs/disable, static provenance, per-bundle persistence and export
 Simulator results are not physical iOS sandbox or jailbreak validation.
+UIKit presenter PASS: App Delegate window lookup and pairing gesture; connected scenes=1 (not proof of a scene-free physical device)
 Secondary bundle PASS: 4 SDK-reviewed UIKit hooks, scalar argument patches, originals/arguments/logs/disable; fixture declarations rejected outside fixture bundle
-Controller inventory / offline static analysis PASS: two installed fixture bundles; one Static Only image; no Agent connection required.
+Controller inventory / offline bundle analysis PASS: installed fixture selected without Agent connection.

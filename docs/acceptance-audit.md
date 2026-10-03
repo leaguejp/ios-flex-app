@@ -1,0 +1,26 @@
+# Acceptance audit
+
+Audited 2026-10-04 JST against the original requirements and application-first/value-patch clarification. Tested implementation: `a9ba29e14ab7dfcea9facd2ca6e57161b0db9d70`, CI run [37146396814](https://github.com/leaguejp/ios-flex-app/actions/runs/37146396814). Documentation-only follow-up preserves this implementation.
+
+| Requirement | Authoritative evidence | Status / limit |
+|---|---|---|
+| New repository, independent UI/Controller/Agent/Scanner/Hook/Static/IPC modules | Git history, Makefile source lists, architecture.md | Implemented; no FLEX source or binary dependency |
+| Installed-app selection; PID/executable/bundle/Agent details | controller/App.m, LXApplications.m, Simulator inventory JSON and screenshots | Installed inventory verified in Simulator; launch/clipboard/gesture interaction on target hardware unverified |
+| Loaded image/class/instance and class methods/selector/encoding, search | LXScanner.m, LXBrowser.m, runtime_test.m, simulator_integration.m | Backend verified on host/Simulator; UI search implemented, physical scale/interaction unverified |
+| Public runtime/dyld enumeration; background scanning; cache refresh | Scanner API calls, Agent serial queue, C-only image load/unload test | Add/remove refresh tested; dynamic image-less class enumeration tested; snapshots are not atomic across external changes |
+| Lightweight normal UIKit injection, explicit activation, exclusions | Entry.m, filter plist, activate handling | Implemented; ElleKit injection on Dopamine/RootHide unverified |
+| Bidirectional sandbox IPC feasibility before device readiness | Separate-process framed transport test; embedded Simulator Agent integration; device-validation.md | **Physical sandbox gate NOT PASSED**. Simulator is insufficient; protocol incorporation remains provisional |
+| Version/PID/bundle/command/response/error and malformed/old-peer safety | Protocol/Controller validation, IPC and Store/Controller tests | Host tests and legitimate Simulator integration pass; malformed result/provenance/pagination paths rejected |
+| Enable/disable, original delegation, meta-class, duplicate prevention, conflicts, thread safety | Typed wrappers and locks; 7 fixture and 4 UIKit profiles; original exception, foreign IMP and concurrent-call tests | Tested within support matrix; no public atomic CAS for independently racing foreign writers |
+| Unsupported signatures disabled and parser broad identification | LXTypes/core parser, UI enabled flags, struct/variadic rejection tests, README matrix | Implemented; arbitrary unreviewed methods remain unsupported rather than forced through casts |
+| Bounded arguments/return/thread/time/duration logs without descriptions | Hook engine, finite scalar/object identity handling, ring cap, no-pool pthread test | Host/Simulator pass; object field identity bounded; object value replacement unsupported |
+| Static header/architecture/load commands/UUID/dependencies/metadata and errors | C parser sanitizer/fuzz tests, production adapter, offline Simulator bundle scan, invalid UTF-8 regression | Partial Objective-C string pools; class-method associations/chained fixups not reconstructed |
+| Runtime Loaded / Static Only provenance | Models, response validation, separate UI flows, exported results | Tested; generated class group explicitly has no Mach-O image |
+| Per-target settings/hook state/history/value patches and JSON export | Controller store and Agent own-domain namespaced preferences; export and process-relaunch tests | Simulator restoration/export pass; default launch policy off; target preference redirection on hardware unverified |
+| Rootless/RootHide filesystem and package architecture separation | Pinned bootstrap/build scripts, actual package reports | Separate builds/package layouts verified; no bootstrap path literal in app/agent access; actual RootHide runtime paths unverified |
+| Actual deb format/compression/tar/member/architecture/signature/dependencies inspection | Downloaded deb reinspection, docs/evidence package reports | gzip/ustar/ar members and 3 arm64 binaries verified for both Debian architectures; signature command presence is not device acceptance |
+| Reproducible Theos builds/CI and warning review | Build workflow/logs, pinned revisions, SDK/runner record | Both jobs pass; no compiler warning/error in latest logs; no local iOS SDK |
+| Separate permitted TestTarget and required behavior coverage | TestTarget app, runtime/IPC/store/core/Simulator tests | Host/Simulator evidence; physical TestTarget not run |
+| README/architecture/validation and meaningful commits/push | Repository files and remote main | Present/pushed; no signing material/device identifiers committed |
+
+The implementation and available build/test/package paths are delivered, but the full device acceptance conditions remain unproven. A connected or SSH-accessible iPhone 11/iOS 15.5/Dopamine, ordinary development provisioning for the sandbox fixture, and a separate RootHide device/environment are required for the corresponding gates. This audit does not convert missing evidence into a pass. Broad offline patch creation for arbitrary methods is also incomplete; the initial reviewed support matrix is the currently implemented scope.

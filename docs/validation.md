@@ -1,6 +1,6 @@
 # Validation record
 
-Recorded 2026-10-04 JST. Build source revision: `614b9d2b22b3f2923a71313d1d24414ebafbfe80`. [Final source build run 37139670215](https://github.com/leaguejp/ios-flex-app/actions/runs/37139670215): **both jobs SUCCESS**. Documentation/evidence-only follow-up does not change the tested source.
+Recorded 2026-10-04 JST. Build source revision: `a9ba29e14ab7dfcea9facd2ca6e57161b0db9d70`. [Final source build run 37146396814](https://github.com/leaguejp/ios-flex-app/actions/runs/37146396814): **both jobs SUCCESS**. Documentation/evidence-only follow-up does not change the tested source.
 
 ## Environment and commands
 
@@ -62,19 +62,19 @@ Artifacts from tested source:
 
 ```text
 jp.league.runtimeatlas_0.1.0_iphoneos-arm64.deb
-SHA256 753b4e4dcd6529ce4a987138fa4ef7ef56d8c7bafb8544752b8007af31259bb1
+SHA256 5b39a7dd731e980a6ad2bde7069ec5c6327def2cee31c7fc26211d0503577cab
 
 jp.league.runtimeatlas_0.1.0_iphoneos-arm64e.deb
-SHA256 7c5eca22af3f9d080e9791dd34f32adf2741e58c8bfd72f0d29a1882d80253fa
+SHA256 9239ad9e346b446f76774ef3534d83676f5b3185675522de7c32c10f6f76826d
 ```
 
-CI artifacts `runtimeatlas-rootless` (ID 11279279886) and `runtimeatlas-roothide` (ID 11279299420) contain deb, build log, package report and host test results; rootless artifact additionally contains Simulator screenshots, integration transcript and JSON export. Generated binaries are artifacts, not committed source. Simulator export contains simulator-local paths, so it was not copied into repository evidence. SHA256 values above refer to downloaded actual deb bytes.
+CI artifacts `runtimeatlas-rootless` (ID 11283010663) and `runtimeatlas-roothide` (ID 11282496039) contain deb, build log, package report and host test results; rootless artifact additionally contains Simulator screenshots, integration transcript and JSON export. Generated binaries are artifacts, not committed source. Simulator export contains simulator-local paths, so it was not copied into repository evidence. SHA256 values above refer to downloaded actual deb bytes.
 
 Independent local reinspection:
 
 ```sh
-python scripts/inspect_deb.py artifacts/current-rootless/rootless/jp.league.runtimeatlas_0.1.0_iphoneos-arm64.deb --architecture iphoneos-arm64 --scheme rootless --output artifacts/current-rootless/rootless/local-package-report.json
-python scripts/inspect_deb.py artifacts/current-roothide/roothide/jp.league.runtimeatlas_0.1.0_iphoneos-arm64e.deb --architecture iphoneos-arm64e --scheme roothide --output artifacts/current-roothide/roothide/local-package-report.json
+python scripts/inspect_deb.py artifacts/validated-rootless/rootless/jp.league.runtimeatlas_0.1.0_iphoneos-arm64.deb --architecture iphoneos-arm64 --scheme rootless --output artifacts/validated-rootless/rootless/local-package-report.json
+python scripts/inspect_deb.py artifacts/validated-roothide/roothide/jp.league.runtimeatlas_0.1.0_iphoneos-arm64e.deb --architecture iphoneos-arm64e --scheme roothide --output artifacts/validated-roothide/roothide/local-package-report.json
 # Both PASS; architecture and package identity confirmed.
 ```
 
@@ -97,3 +97,13 @@ Reproduce the physical tests in [device-validation.md](device-validation.md), re
 The application-first UI selects installed apps, opens them where LaunchServices permits, and shows process information under Connection details. Pairing keys are prefilled from a user-directed clipboard transfer; manual pairing is a fallback. Static bundle analysis and saved JSON export are available without Agent connection. Interactive value patches replace the supported scalar argument before delegating and may replace the successful return afterward. Explicit per-app launch authorization stores profiles in the host app's own namespaced preferences and restores them after process restart; default off, deactivate revokes it.
 
 Actual final logs contain no compiler `warning:` / `error:`. An intermediate test compile exposed Objective-C dictionary commas inside the assert macro; parentheses corrected it, and the final tests pass. Generated package reports were independently regenerated from downloaded deb bytes on Windows. Core sanitizer tests, production Objective-C tests and Python package tests passed on both CI jobs; four Python package tests also passed locally. Screenshot review confirms the installed-app rows and Refresh action are readable. Interactive UI navigation, launch gesture and clipboard prompts on physical hardware remain unverified.
+
+## Acceptance audit corrections
+
+Host tests additionally PASS for syntactically valid but malformed persisted JSON, capped file reads, malformed Controller response bodies, incorrect provenance and nonadvancing pagination. Fractional protocol version/PID is rejected. Static invalid UTF-8 metadata yields an `invalid_utf8` error while preserving partial valid metadata. These cover concrete exception paths found during source audit.
+
+Logging-only autorelease pools surround temporary log allocations, not the original implementation. Owned scalar-patch snapshots release on normal and exceptional exits; cached encoding descriptions and 256-byte object class-name limits reduce allocation volume. A bare pthread repeatedly calls the real hook with `OBJC_DEBUG_MISSING_POOLS=YES`; PASS with no missing-pool warnings. Image cache invalidation after loading/unloading a permitted C-only test dylib PASS. A dynamically registered image-less class is enumerated via objc_copyClassList under a virtual class group, not fabricated Mach-O information.
+
+UIKit presenter check PASS: actual fixture App Delegate window lookup and pairing gesture registration. The current Simulator creates one connected Scene even without a scene manifest; an initial test incorrectly assumed zero and was corrected. The legacy window helper is checked independently, but actual Scene-free iOS 15.5 interaction remains unverified.
+
+The hardware blocker was rechecked: Windows present-device inventory contains no iPhone/Apple Mobile device, and no SSH endpoint/configuration or development provisioning is provided. [Acceptance audit](acceptance-audit.md) distinguishes source/host/Simulator/package evidence from outstanding physical gates.
