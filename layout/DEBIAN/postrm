@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+if [ "${1:-}" = remove ] || [ "${1:-}" = purge ]; then
+    if command -v uicache >/dev/null 2>&1; then
+        uicache -a || printf '%s\n' 'Runtime Atlas: refresh icon cache in the active jailbreak shell.' >&2
+    fi
+fi
+exit 0

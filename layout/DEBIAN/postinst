@@ -1,0 +1,11 @@
+#!/bin/sh
+set -eu
+if [ "${1:-}" = configure ]; then
+    # Resolve the tool through the active bootstrap's PATH; no fixed jbroot assumption.
+    if command -v uicache >/dev/null 2>&1; then
+        uicache -a || printf '%s\n' 'Runtime Atlas: icon refresh failed; run uicache in the active jailbreak shell.' >&2
+    else
+        printf '%s\n' 'Runtime Atlas: run uicache -a in the active jailbreak shell to register home-screen icons.' >&2
+    fi
+fi
+exit 0

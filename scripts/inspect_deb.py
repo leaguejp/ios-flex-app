@@ -69,6 +69,11 @@ def inspect(path, architecture, scheme):
     control,ch=archive(members['control.tar.gz']); data,dh=archive(members['data.tar.gz'])
     info={}; controls=[m for m in control.getmembers() if m.name.lstrip('./')=='control']
     if len(controls)!=1: raise ValueError('control missing')
+    for script in ('postinst','postrm'):
+        entries=[m for m in control.getmembers() if m.name.lstrip('./')==script]
+        if len(entries)!=1 or not entries[0].mode & 0o111: raise ValueError('missing/nonexecutable maintainer script: '+script)
+        text=control.extractfile(entries[0]).read()
+        if not text.startswith(b'#!/bin/sh\n') or b'\r' in text: raise ValueError('invalid shell script format')
     for line in control.extractfile(controls[0]).read().decode().splitlines():
         if ': ' in line:
             key,value=line.split(': ',1);info[key]=value

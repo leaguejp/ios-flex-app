@@ -21,7 +21,7 @@ bash scripts/build.sh roothide
 
 GitHub Actions runs both schemes, production Objective-C host tests, sanitizers, deb inspection and artifact upload. Theos revisions are pinned in `scripts/bootstrap.sh`; submodules inherit fixed revisions. Official runner Xcode SDK is used. Xcode version is recorded by CI build log; reproducing bit-identical binaries also requires the same Xcode. Mach-O code is arm64; **Debian** architectures differ: rootless `iphoneos-arm64`, RootHide `iphoneos-arm64e`.
 
-Install the matching artifact via Sileo/Zebra or `dpkg -i` in the appropriate jailbreak shell. Enable TestTarget/application injection in your jailbreak manager, then relaunch the target. Refresh icon cache using the jailbreak's `uicache` utility if necessary. Controller and Atlas TestTarget appear on the home screen. Do not install the RootHide package into ordinary Dopamine. Only one variant should be installed at a time.
+Install the matching artifact via Sileo/Zebra or `dpkg -i` in the appropriate jailbreak shell. Enable TestTarget/application injection in your jailbreak manager, then relaunch the target. The package's maintainer script resolves `uicache` from the active bootstrap PATH and refreshes icons; if unavailable, run the jailbreak's `uicache -a` manually. Controller and Atlas TestTarget appear on the home screen. Do not install the RootHide package into ordinary Dopamine. Only one variant should be installed at a time.
 
 ## Use
 
