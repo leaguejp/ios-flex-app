@@ -40,8 +40,8 @@ int main(void) { @autoreleasepool {
  LXSession *session=controller.sessions[0];assert([session.identity[@"bundle"] isEqual:bundle]);
  NSString *nonce=NSUUID.UUID.UUIDString;NSDictionary *ping=request(controller,session,@"ping",@{@"nonce":nonce});assert([ping[@"echo"][@"nonce"] isEqual:nonce]);
  request(controller,session,@"activate",@{});assert(session.active);
- NSDictionary *presenter=request(controller,session,@"fixturePresenterCheck",@{});assert([presenter[@"available"] boolValue] && [presenter[@"gestureInstalled"] boolValue]);assert([presenter[@"sceneCount"] unsignedIntegerValue]==0);
- puts("Legacy UIKit presenter PASS: app delegate window fallback and pairing gesture installed with no connected scenes");
+ NSDictionary *presenter=request(controller,session,@"fixturePresenterCheck",@{});assert([presenter[@"available"] boolValue] && [presenter[@"gestureInstalled"] boolValue]);assert([presenter[@"legacyAvailable"] boolValue]);
+ printf("UIKit presenter PASS: App Delegate window lookup and pairing gesture; connected scenes=%lu (not proof of a scene-free physical device)\n",(unsigned long)[presenter[@"sceneCount"] unsignedIntegerValue]);
 
  if(![bundle isEqual:@"jp.league.runtimeatlas.fixture"]) {
   NSDictionary *denied=response(controller,session,@"hookEnable",@{@"class":@"LXFixture",@"selector":@"ping",@"classMethod":@NO});assert([denied[@"error"][@"code"] isEqual:@"unsupported_signature"]);
