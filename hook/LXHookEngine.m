@@ -62,6 +62,17 @@ static IMP LXCreate(LXRecord *r,NSString *selector) {
  LX_SCALAR("scale:",float)
  LX_SCALAR("doubleValue:",double)
 #undef LX_SCALAR
+#define LX_VOID_SCALAR(SELECTOR,TYPE) \
+ if([selector isEqual:@SELECTOR]) return imp_implementationWithBlock(^(id obj,TYPE arg) { \
+ BOOL trace=(LXDepth++==0);uint64_t start=LXClock();NSTimeInterval wall=NSDate.date.timeIntervalSince1970;BOOL threw=YES; \
+ @try { ((void(*)(id,SEL,TYPE))r.original)(obj,r.selector,arg);threw=NO; } \
+ @finally { --LXDepth;if(trace) { @try { [r.engine appendRecord:r args:@[LXScalar(@(arg))] result:NSNull.null start:start wall:wall threw:threw]; } @catch(NSException *e) { (void)e; } } } \
+ });
+ LX_VOID_SCALAR("setHidden:",BOOL)
+ LX_VOID_SCALAR("viewWillAppear:",BOOL)
+ LX_VOID_SCALAR("viewDidAppear:",BOOL)
+ LX_VOID_SCALAR("setAlpha:",double)
+#undef LX_VOID_SCALAR
  return NULL;
 }
 @implementation LXHookEngine { NSRecursiveLock *_lock;NSMutableDictionary *_records;NSMutableArray *_retired;NSMutableArray *_events;NSUInteger _bytes; }

@@ -3,12 +3,27 @@
 #import "../controller/LXController.h"
 #include <assert.h>
 static void pump(NSTimeInterval seconds) { [NSRunLoop.mainRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:seconds]]; }
-static NSDictionary *request(LXController *c,LXSession *s,NSString *cmd,NSDictionary *p) {
+static NSDictionary *response(LXController *c,LXSession *s,NSString *cmd,NSDictionary *p) {
  __block NSDictionary *response=nil;
  [c request:cmd payload:p session:s completion:^(NSDictionary *r) { response=r; }];
  NSDate *deadline=[NSDate dateWithTimeIntervalSinceNow:35];while(!response && deadline.timeIntervalSinceNow>0) pump(0.01);
- if(!response || (response[@"error"] && response[@"error"]!=NSNull.null)) { NSLog(@"Failed command %@: %@",cmd,response[@"error"]);abort(); }
- return response[@"payload"];
+ assert(response);return response;
+}
+static NSDictionary *request(LXController *c,LXSession *s,NSString *cmd,NSDictionary *p) {
+ NSDictionary *r=response(c,s,cmd,p);
+ if(r[@"error"] && r[@"error"]!=NSNull.null) { NSLog(@"Failed command %@: %@",cmd,r[@"error"]);abort(); }
+ return r[@"payload"];
+}
+static void checkUIKit(LXController *c,LXSession *s) {
+ NSArray *profiles=@[@{@"class":@"UIView",@"selector":@"setHidden:",@"classMethod":@NO},@{@"class":@"UIView",@"selector":@"setAlpha:",@"classMethod":@NO},@{@"class":@"UIViewController",@"selector":@"viewWillAppear:",@"classMethod":@NO},@{@"class":@"UIViewController",@"selector":@"viewDidAppear:",@"classMethod":@NO}];
+ for(NSDictionary *profile in profiles) request(c,s,@"hookEnable",profile);
+ NSDictionary *values=request(c,s,@"fixtureUIKitRun",@{});assert([values[@"hidden"] boolValue] && [values[@"alpha"] doubleValue]==.25);
+ NSArray *logs=request(c,s,@"logs",@{})[@"logs"];
+ for(NSDictionary *profile in profiles) {
+  BOOL found=NO;for(NSDictionary *event in logs) if([event[@"class"] isEqual:profile[@"class"]] && [event[@"selector"] isEqual:profile[@"selector"]]) { assert([event[@"arguments"] count]==1 && event[@"return"]==NSNull.null);found=YES; }
+  assert(found);NSString *key=[NSString stringWithFormat:@"-%@/%@",profile[@"class"],profile[@"selector"]];request(c,s,@"hookDisable",@{@"key":key});
+ }
+ NSUInteger before=[request(c,s,@"logs",@{})[@"logs"] count];values=request(c,s,@"fixtureUIKitRun",@{});assert([values[@"hidden"] boolValue] && [values[@"alpha"] doubleValue]==.25);assert([request(c,s,@"logs",@{})[@"logs"] count]==before);
 }
 static void checkCalls(NSDictionary *p) {
  assert([p[@"pings"] integerValue]==1 && [p[@"objectIdentity"] boolValue] && [p[@"integer"] integerValue]==42 && [p[@"bool"] boolValue] && [p[@"float"] doubleValue]==3 && [p[@"double"] doubleValue]==5 && [p[@"classValue"] integerValue]==42);
@@ -16,11 +31,17 @@ static void checkCalls(NSDictionary *p) {
 int main(void) { @autoreleasepool {
  LXController *controller=[LXController new];assert([controller start:nil]);
  NSString *device=NSProcessInfo.processInfo.environment[@"LX_SIMULATOR_UDID"];assert(device);
- NSTask *launch=[NSTask new];launch.executableURL=[NSURL fileURLWithPath:@"/usr/bin/xcrun"];launch.arguments=@[@"simctl",@"launch",device,@"jp.league.runtimeatlas.fixture",@"--lx-test-token",controller.token];assert([launch launchAndReturnError:nil]);[launch waitUntilExit];assert(launch.terminationStatus==0);
+ NSString *bundle=NSProcessInfo.processInfo.environment[@"LX_FIXTURE_BUNDLE"] ?: @"jp.league.runtimeatlas.fixture";
+ NSTask *launch=[NSTask new];launch.executableURL=[NSURL fileURLWithPath:@"/usr/bin/xcrun"];launch.arguments=@[@"simctl",@"launch",device,bundle,@"--lx-test-token",controller.token];assert([launch launchAndReturnError:nil]);[launch waitUntilExit];assert(launch.terminationStatus==0);
  NSDate *deadline=[NSDate dateWithTimeIntervalSinceNow:30];while(!controller.sessions.count && deadline.timeIntervalSinceNow>0) pump(.01);assert(controller.sessions.count==1);
- LXSession *session=controller.sessions[0];assert([session.identity[@"bundle"] isEqual:@"jp.league.runtimeatlas.fixture"]);
+ LXSession *session=controller.sessions[0];assert([session.identity[@"bundle"] isEqual:bundle]);
  NSString *nonce=NSUUID.UUID.UUIDString;NSDictionary *ping=request(controller,session,@"ping",@{@"nonce":nonce});assert([ping[@"echo"][@"nonce"] isEqual:nonce]);
  request(controller,session,@"activate",@{});assert(session.active);
+ if(![bundle isEqual:@"jp.league.runtimeatlas.fixture"]) {
+  NSDictionary *denied=response(controller,session,@"hookEnable",@{@"class":@"LXFixture",@"selector":@"ping",@"classMethod":@NO});assert([denied[@"error"][@"code"] isEqual:@"unsupported_signature"]);
+  checkUIKit(controller,session);request(controller,session,@"deactivate",@{});
+  puts("Secondary bundle PASS: 4 SDK-reviewed UIKit hooks, originals/arguments/logs/disable; fixture declarations rejected outside fixture bundle");return 0;
+ }
  NSDictionary *images=request(controller,session,@"images",@{});NSString *image;
  for(NSDictionary *item in images[@"images"]) { assert([item[@"provenance"] isEqual:@"Runtime Loaded"]);if([item[@"name"] isEqual:@"AtlasTestTarget"]) image=item[@"path"]; }assert(image);
  BOOL found=NO;NSUInteger offset=0;
@@ -43,6 +64,7 @@ int main(void) { @autoreleasepool {
  request(controller,session,@"state",@{});NSDictionary *saved=[controller.store stateForBundle:session.identity[@"bundle"]];assert(saved[@"desiredHooks"] && saved[@"hookState"] && [saved[@"logs"] count]==7);
  NSURL *export=[controller.store exportBundle:session.identity[@"bundle"] error:nil];assert(export);NSData *bytes=[NSData dataWithContentsOfURL:export];assert(bytes);assert(![[[NSString alloc] initWithData:bytes encoding:NSUTF8StringEncoding] containsString:controller.token]);
  [bytes writeToFile:@"artifacts/simulator/integration-export.json" atomically:YES];
+ checkUIKit(controller,session);
  request(controller,session,@"deactivate",@{});assert(!session.active);
  puts("Simulator integration PASS: actual Agent, Controller sessions, IPC, loaded images/classes/methods, 7 hooks/originals/logs/disable, static provenance, per-bundle persistence and export");
  puts("Simulator results are not physical iOS sandbox or jailbreak validation.");

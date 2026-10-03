@@ -88,8 +88,7 @@
    else if([command isEqual:@"classes"] && [p[@"image"] isKindOfClass:NSString.class] && [p[@"offset"] isKindOfClass:NSNumber.class] && [p[@"offset"] longLongValue]>=0) out=[_scanner classesInImage:p[@"image"] offset:[p[@"offset"] unsignedIntegerValue]];
    else if([command isEqual:@"methods"] && [p[@"class"] isKindOfClass:NSString.class] && (!p[@"offset"] || ([p[@"offset"] isKindOfClass:NSNumber.class] && [p[@"offset"] longLongValue]>=0))) out=[_scanner methodsInClass:p[@"class"] offset:[p[@"offset"] unsignedIntegerValue]];
    else if([command isEqual:@"hookEnable"] && [p[@"class"] isKindOfClass:NSString.class] && [p[@"selector"] isKindOfClass:NSString.class] && [p[@"classMethod"] isKindOfClass:NSNumber.class]) {
-    if(![NSBundle.mainBundle.bundleIdentifier isEqual:@"jp.league.runtimeatlas.fixture"]) out=@{@"error":LXError(@"unreviewed_bundle",@"Hook declarations reviewed for TestTarget only")};
-    else out=[_hooks enableClass:p[@"class"] selector:p[@"selector"] classMethod:[p[@"classMethod"] boolValue]];
+    out=[_hooks enableClass:p[@"class"] selector:p[@"selector"] classMethod:[p[@"classMethod"] boolValue]];
    }
    else if([command isEqual:@"hookDisable"] && [p[@"key"] isKindOfClass:NSString.class]) out=[_hooks disableKey:p[@"key"]];
    else if([command isEqual:@"state"]) out=@{@"hooks":[_hooks state],@"active":@(_active)};
@@ -99,6 +98,13 @@
    else if([command isEqual:@"fixtureRun"]) {
     LXFixture *fixture=[LXFixture new];[fixture ping];id marker=[NSObject new];id echoed=[fixture echo:marker];
     out=@{@"pings":@(fixture.pings),@"objectIdentity":@(echoed==marker),@"integer":@([fixture addOne:41]),@"bool":@([fixture invert:NO]),@"float":@([fixture scale:2]),@"double":@([fixture doubleValue:2.5]),@"classValue":@([LXFixture classValue])};
+   }
+   else if([command isEqual:@"fixtureUIKitRun"]) {
+    __block NSDictionary *values;dispatch_sync(dispatch_get_main_queue(),^{
+     UIView *view=[UIView new];view.hidden=YES;view.alpha=.25;
+     UIViewController *controller=[UIViewController new];[controller viewWillAppear:YES];[controller viewDidAppear:YES];
+     values=@{@"hidden":@(view.hidden),@"alpha":@(view.alpha)};
+    });out=values;
    }
 #endif
    else out=@{@"error":LXError(@"bad_command",@"Unknown command or invalid arguments")};

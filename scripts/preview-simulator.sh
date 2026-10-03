@@ -16,6 +16,13 @@ xcrun simctl install "$udid" build/fixture-iphonesimulator/AtlasTestTarget.app
 clang -fobjc-arc -fblocks -Wall -Wextra -Werror tests/simulator_integration.m controller/LXController.m controller/LXStore.m shared/LXChannel.m shared/LXProtocol.m shared/LXAuth.m -framework Foundation -o build/simulator-integration
 LX_SIMULATOR_UDID="$udid" build/simulator-integration | tee artifacts/simulator/integration.txt
 xcrun simctl terminate "$udid" jp.league.runtimeatlas.fixture
+# Same source, distinct application bundle: verifies UIKit support is not fixture-gated.
+cp -R build/fixture-iphonesimulator/AtlasTestTarget.app build/fixture-iphonesimulator/AtlasSecondary.app
+/usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier jp.league.runtimeatlas.fixture.secondary' build/fixture-iphonesimulator/AtlasSecondary.app/Info.plist
+codesign --force --sign - build/fixture-iphonesimulator/AtlasSecondary.app
+xcrun simctl install "$udid" build/fixture-iphonesimulator/AtlasSecondary.app
+LX_SIMULATOR_UDID="$udid" LX_FIXTURE_BUNDLE=jp.league.runtimeatlas.fixture.secondary build/simulator-integration | tee artifacts/simulator/secondary-integration.txt
+xcrun simctl terminate "$udid" jp.league.runtimeatlas.fixture.secondary
 xcrun simctl launch "$udid" jp.league.runtimeatlas.controller
 sleep 3
 xcrun simctl io "$udid" screenshot artifacts/simulator/controller.png
