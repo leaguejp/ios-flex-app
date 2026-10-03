@@ -10,8 +10,8 @@
 - (BOOL)application:(UIApplication *)app didFinishLaunchingWithOptions:(NSDictionary *)options {
  (void)app;(void)options;_background=UIBackgroundTaskInvalid;_controller=[LXController new];_root=[LXBrowser new];_root.title=@"Runtime Atlas";
  self.window=[[UIWindow alloc] initWithFrame:UIScreen.mainScreen.bounds];self.window.rootViewController=[[UINavigationController alloc] initWithRootViewController:_root];[self.window makeKeyAndVisible];
- _root.navigationItem.rightBarButtonItem=[[UIBarButtonItem alloc] initWithTitle:@"Pair" style:UIBarButtonItemStylePlain target:self action:@selector(pair)];
- __weak LXApp *weak=self;_controller.changed=^{ [weak refresh]; };_root.selected=^(NSDictionary *row) { if(row[@"session"]) [weak target:row[@"session"]];else [weak installedTarget:row[@"application"]]; };
+ _root.navigationItem.rightBarButtonItem=[[UIBarButtonItem alloc] initWithTitle:@"Refresh" style:UIBarButtonItemStylePlain target:self action:@selector(reloadApplications)];
+ __weak LXApp *weak=self;_controller.changed=^{ [weak refresh]; };_root.selected=^(NSDictionary *row) { if([row[@"action"] isEqual:@"manualPair"]) [weak pair];else if(row[@"session"]) [weak target:row[@"session"]];else [weak installedTarget:row[@"application"]]; };
  NSError *error=nil;if(![_controller start:&error]) dispatch_async(dispatch_get_main_queue(),^{ LXApp *strong=weak;if(strong) LXAlert(strong->_root,[NSString stringWithFormat:@"IPC listener failed: %@",error.localizedDescription]); });[self reloadApplications];return YES;
 }
 - (void)applicationDidEnterBackground:(UIApplication *)application {
@@ -38,12 +38,13 @@
   NSMutableDictionary *row=[@{@"title":app[@"name"],@"subtitle":[NSString stringWithFormat:@"%@ · %@",bundle,connected?(connected.active?@"Agent Active":@"Agent Connected"):@"Installed · Agent Offline"],@"application":app} mutableCopy];if(connected) row[@"session"]=connected;[rows addObject:row];[seen addObject:bundle];
  }
  for(LXSession *s in _controller.sessions) if(![seen containsObject:s.identity[@"bundle"]]) [rows addObject:@{@"title":s.identity[@"bundle"],@"subtitle":[NSString stringWithFormat:@"Agent %@ · PID %@",s.active?@"Active":@"Connected",s.identity[@"pid"]],@"session":s}];
+ if(!_installed.count) [rows addObject:@{@"title":@"Connect an app manually",@"subtitle":_inventoryFailure ?: @"Installed-app inventory is empty",@"action":@"manualPair"}];
  _root.rows=rows;
  if(!rows.count) { UILabel *label=[UILabel new];label.text=_inventoryFailure ?: @"No installed target applications found";label.numberOfLines=0;label.textAlignment=NSTextAlignmentCenter;label.textColor=UIColor.secondaryLabelColor;label.font=[UIFont systemFontOfSize:15];_root.tableView.backgroundView=label; }else _root.tableView.backgroundView=nil;
 }
 - (void)installedTarget:(NSDictionary *)application {
  NSString *bundle=application[@"bundle"];LXBrowser *menu=[LXBrowser new];menu.title=application[@"name"];
- menu.rows=@[@{@"title":@"Analyze installed bundle",@"subtitle":@"Static Only · no running process required",@"action":@"static"},@{@"title":@"Enable analysis / open app",@"subtitle":@"Pair Agent, then activate from this app",@"action":@"open"},@{@"title":@"Saved patches / settings",@"subtitle":@"Available while Agent is offline",@"action":@"saved"}];
+ menu.rows=@[@{@"title":@"Analyze installed bundle",@"subtitle":@"Static Only · no running process required",@"action":@"static"},@{@"title":@"Enable analysis / open app",@"subtitle":@"Pair Agent, then activate from this app",@"action":@"open"},@{@"title":@"Saved patches / settings",@"subtitle":@"Available while Agent is offline",@"action":@"saved"},@{@"title":@"Export saved JSON",@"subtitle":@"Saved settings, patches and history",@"action":@"export"}];
  __weak LXBrowser *weakMenu=menu;menu.selected=^(NSDictionary *row) {
   if([row[@"action"] isEqual:@"static"]) {
    NSString *path=application[@"bundlePath"];if(!path.length) { LXAlert(weakMenu,@"LaunchServices did not provide a bundle path. Connect the Agent to analyze its own bundle.");return; }
@@ -51,6 +52,7 @@
     dispatch_async(dispatch_get_main_queue(),^{ NSMutableDictionary *state=[[self->_controller.store stateForBundle:bundle] mutableCopy];NSMutableArray *history=[state[@"history"] mutableCopy] ?: [NSMutableArray new];[history addObject:@{@"command":@"staticOffline",@"response":result,@"time":@(NSDate.date.timeIntervalSince1970)}];while(history.count>8) [history removeObjectAtIndex:0];state[@"history"]=history;BOOL saved=[self->_controller.store save:state bundle:bundle];[self images:result[@"images"] session:nil parent:weakMenu runtime:NO];if(!saved || [result[@"errors"] count]) LXShowJSON(weakMenu,@"Static analysis diagnostics",@{@"saved":@(saved),@"errors":result[@"errors"] ?: @[]}); });
    });return;
   }
+  if([row[@"action"] isEqual:@"export"]) { NSError *error=nil;NSURL *url=[self->_controller.store exportBundle:bundle error:&error];if(!url) { LXAlert(weakMenu,error.localizedDescription);return; }UIActivityViewController *share=[[UIActivityViewController alloc] initWithActivityItems:@[url] applicationActivities:nil];share.popoverPresentationController.sourceView=weakMenu.view;[weakMenu presentViewController:share animated:YES completion:nil];return; }
   if([row[@"action"] isEqual:@"saved"]) { LXShowJSON(weakMenu,@"Saved patches",[self->_controller.store stateForBundle:bundle]);return; }
   UIPasteboard.generalPasteboard.string=self->_controller.token;
   UIAlertController *alert=[UIAlertController alertControllerWithTitle:@"Connect selected app" message:@"The pairing key is copied internally. Open the app, tap three times with three fingers, and confirm Pair. Return here to activate and create patches. If no gesture appears, verify tweak injection and restart the target app." preferredStyle:UIAlertControllerStyleAlert];
