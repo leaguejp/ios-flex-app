@@ -78,8 +78,13 @@ def inspect(path, architecture, scheme):
     for entry in data.getmembers():
         name=entry.name.removeprefix('./')
         if name.startswith('/') or '..' in name.split('/'): raise ValueError('unsafe package path')
+        if name in ('','.'):
+            if not entry.isdir(): raise ValueError('tar root must be a directory')
+            continue
         if scheme=='rootless' and name and name not in ('var','var/jb') and not name.startswith('var/jb/'):
             raise ValueError('rootless file outside install prefix: '+name)
+        if scheme=='roothide' and name.split('/')[0] not in ('Applications','Library'):
+            raise ValueError('unexpected RootHide install layout: '+name)
         if entry.isfile():
             blob=data.extractfile(entry).read()
             if blob[:4]==b'\xcf\xfa\xed\xfe': binaries[name]=macho(blob)

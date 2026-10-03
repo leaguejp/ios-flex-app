@@ -21,5 +21,11 @@ int main(void) {
  put(d+36,0xfffffff8);assert(!lx_macho(d,56,emit,NULL,e,sizeof(e)));
  put(d+36,24);put(d+32,0x2c);put(d+48,1);assert(!lx_macho(d,56,emit,NULL,e,sizeof(e))&&!strcmp(e,"encrypted_image"));
  for(size_t i=0;i<56;i++) assert(!lx_macho(d,i,emit,NULL,e,sizeof(e)));
+ unsigned state=0x12345678;
+ for(unsigned iteration=0;iteration<20000;iteration++) {
+  for(size_t j=0;j<sizeof(d);j++) { state=state*1664525u+1013904223u;d[j]=(unsigned char)(state>>24); }
+  if(iteration%2==0) put(d,0xfeedfacf);
+  (void)lx_macho(d,iteration%sizeof(d),emit,NULL,e,sizeof(e));
+ }
  puts("core: encoding and malformed Mach-O tests passed");return 0;
 }
