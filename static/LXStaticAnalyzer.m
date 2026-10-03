@@ -49,7 +49,7 @@ static void LXStaticClass(void *context,const char *name,int meta,const char *se
    record[@"classMap"]=[NSMutableDictionary new];record[@"bundle"]=bundle;char objcError[128]={0};
    BOOL decoded=lx_macho_objc(data.bytes,data.length,LXStaticClass,(__bridge void *)record,objcError,sizeof(objcError));
    NSDictionary *map=record[@"classMap"];NSMutableArray *classes=[NSMutableArray new];for(NSString *name in [[map allKeys] sortedArrayUsingSelector:@selector(compare:)]) [classes addObject:map[name]];
-   record[@"classes"]=classes;[record removeObjectForKey:@"classMap"];record[@"objcRelationshipsComplete"]=@(decoded && ![record[@"metadataTruncated"] boolValue]);
+   record[@"classes"]=classes;[record removeObjectForKey:@"classMap"];record[@"classListRelationshipsComplete"]=@(decoded && ![record[@"metadataTruncated"] boolValue]);
    if(!decoded) [errors addObject:@{@"path":url.path,@"code":@(objcError),@"detail":@"Objective-C relationships are partial; unresolved entries are not inferred"}];
    if(record[@"metadataError"]) [errors addObject:@{@"path":url.path,@"code":record[@"metadataError"],@"detail":@"A metadata string is not valid UTF-8; omitted from partial result"}];
    NSUInteger bytes=[NSJSONSerialization dataWithJSONObject:record options:0 error:nil].length;

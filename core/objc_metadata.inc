@@ -93,7 +93,7 @@ static int chains(LXMetadata *m,uint32_t file,uint32_t length,char *e,size_t es)
    }
   }
  }
- qsort(m->fix,m->fixes,sizeof(*m->fix),fixcmp);return 1;
+ qsort(m->fix,m->fixes,sizeof(*m->fix),fixcmp);for(size_t i=1;i<m->fixes;i++) if(m->fix[i-1].slot==m->fix[i].slot) return fail(e,es,"overlapping_chains");return 1;
 }
 int lx_macho_objc(const uint8_t *d,size_t n,LXObjCEmit emit,void *ctx,char *e,size_t es) {
  if(!d || !emit || n<32) return fail(e,es,"truncated_objc_header");
@@ -104,7 +104,7 @@ int lx_macho_objc(const uint8_t *d,size_t n,LXObjCEmit emit,void *ctx,char *e,si
   for(uint32_t i=0;i<count;i++) { const uint8_t *a=d+8+i*stride;
    if(u32(a,1)!=0x100000c) continue;
    uint64_t off=stride==32?u64(a+8,1):u32(a+8,1),len=stride==32?u64(a+16,1):u32(a+12,1);
-   if(off<8+count*stride || !range(off,len,n)) return fail(e,es,"invalid_fat_slice");
+   if(off<8+count*stride || !range(off,len,n) || len<32 || u32(d+off,0)!=0xfeedfacf) return fail(e,es,"invalid_fat_slice");
    return lx_macho_objc(d+off,(size_t)len,emit,ctx,e,es);
   }return fail(e,es,"no_arm64_slice");
  }

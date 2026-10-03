@@ -21,6 +21,10 @@ static void objc_test(void) {
  put(d+608,24);put(d+612,1);put(d+672,24);put(d+676,1);
  strcpy((char *)d+736,"LXFixture");strcpy((char *)d+768,"addOne:");strcpy((char *)d+800,"q24@0:8q16");strcpy((char *)d+832,"classValue");strcpy((char *)d+864,"q16@0:8");
  assert(lx_macho_objc(d,sizeof(d),objc_emit,NULL,e,sizeof(e)));assert(classes==1 && instance_methods==1 && class_methods==1);
+ // Fat tables must select a real thin arm64 slice, never recursively parse nested fat files.
+ unsigned char fat[2080]={0};fat[0]=0xca;fat[1]=0xfe;fat[2]=0xba;fat[3]=0xbe;fat[7]=1;fat[9]=0;fat[8]=1;fat[11]=12;fat[19]=32;fat[22]=8;
+ memcpy(fat+32,d,sizeof(d));assert(lx_macho_objc(fat,sizeof(fat),objc_emit,NULL,e,sizeof(e)));
+ memcpy(fat+32,fat,28);assert(!lx_macho_objc(fat,sizeof(fat),objc_emit,NULL,e,sizeof(e)));classes--;instance_methods--;class_methods--;
  // Small relative lists with direct selector strings, including negative offset rejection.
  put(d+608,0xc000000c);put(d+616,768-616);put(d+620,800-620);
  assert(lx_macho_objc(d,sizeof(d),objc_emit,NULL,e,sizeof(e)));assert(classes==2 && instance_methods==2 && class_methods==2);
