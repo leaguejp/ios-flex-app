@@ -7,6 +7,7 @@
 #import "../static/LXStaticAnalyzer.h"
 #import "../hook/LXHookEngine.h"
 #include <unistd.h>
+#import <objc/runtime.h>
 #if LX_FIXTURE_AUTOMATION
 #import "../testtarget/LXFixture.h"
 #endif
@@ -17,6 +18,16 @@
 }
 + (instancetype)shared { static LXAgent *agent;static dispatch_once_t once;dispatch_once(&once,^{ agent=[LXAgent new]; });return agent; }
 - (instancetype)init { if((self=[super init])) { _queue=dispatch_queue_create("jp.league.runtimeatlas.agent",DISPATCH_QUEUE_SERIAL);_seenCommands=[NSMutableSet new];_commandOrder=[NSMutableArray new];_methodProfiles=[NSMutableDictionary new];_savedPatches=[NSMutableDictionary new];dispatch_async(_queue,^{ [self restoreLaunchPatches]; }); }return self; }
+- (NSDictionary *)enableProfile:(NSDictionary *)profile {
+ id encoding=profile[@"encoding"];
+ if(encoding) {
+  if(![encoding isKindOfClass:NSString.class]) return @{@"error":LXError(@"invalid_profile",@"Encoding must be a string")};
+  Class cls=objc_getClass([profile[@"class"] UTF8String]);SEL sel=sel_registerName([profile[@"selector"] UTF8String]);Method method=[profile[@"classMethod"] boolValue]?class_getClassMethod(cls,sel):class_getInstanceMethod(cls,sel);
+  const char *actual=method?method_getTypeEncoding(method):NULL;
+  if(!actual || ![encoding isEqual:@(actual)]) return @{@"error":LXError(@"encoding_changed",@"Saved/static method encoding differs from the loaded method; analyze again")};
+ }
+ return [_hooks enableClass:profile[@"class"] selector:profile[@"selector"] classMethod:[profile[@"classMethod"] boolValue]];
+}
 - (void)saveLaunchPatches {
  [NSUserDefaults.standardUserDefaults setObject:@{@"schema":@1,@"enabled":@(_launchPatches),@"patches":_savedPatches} forKey:@"jp.league.runtimeatlas.launchPatches"];
 }
@@ -29,7 +40,7 @@
   NSDictionary *entry=_savedPatches[key];NSDictionary *method=entry[@"method"],*patch=entry[@"patch"];
   if(![method isKindOfClass:NSDictionary.class] || ![method[@"class"] isKindOfClass:NSString.class] || ![method[@"selector"] isKindOfClass:NSString.class] || ![method[@"classMethod"] isKindOfClass:NSNumber.class] || ![patch isKindOfClass:NSDictionary.class]) { [errors addObject:@{@"key":key,@"error":@"Malformed saved patch"}];continue; }
   NSString *expected=[NSString stringWithFormat:@"%@%@/%@",[method[@"classMethod"] boolValue]?@"+":@"-",method[@"class"],method[@"selector"]];if(![key isEqual:expected]) { [errors addObject:@{@"key":key,@"error":@"Saved method identity mismatch"}];continue; }
-  NSDictionary *enabled=[_hooks enableClass:method[@"class"] selector:method[@"selector"] classMethod:[method[@"classMethod"] boolValue]];
+  NSDictionary *enabled=[self enableProfile:method];
   NSDictionary *result=enabled[@"error"]?enabled:[_hooks configurePatch:patch key:enabled[@"key"]];
   if(result[@"error"]) { if(enabled[@"key"]) [_hooks disableKey:enabled[@"key"]];[errors addObject:@{@"key":key,@"error":result[@"error"]}]; }
   else { _methodProfiles[key]=method;_active=YES; }
@@ -115,7 +126,7 @@
    else if([command isEqual:@"classes"] && [p[@"image"] isKindOfClass:NSString.class] && [p[@"offset"] isKindOfClass:NSNumber.class] && [p[@"offset"] longLongValue]>=0) out=[_scanner classesInImage:p[@"image"] offset:[p[@"offset"] unsignedIntegerValue]];
    else if([command isEqual:@"methods"] && [p[@"class"] isKindOfClass:NSString.class] && (!p[@"offset"] || ([p[@"offset"] isKindOfClass:NSNumber.class] && [p[@"offset"] longLongValue]>=0))) out=[_scanner methodsInClass:p[@"class"] offset:[p[@"offset"] unsignedIntegerValue]];
    else if([command isEqual:@"hookEnable"] && [p[@"class"] isKindOfClass:NSString.class] && [p[@"selector"] isKindOfClass:NSString.class] && [p[@"classMethod"] isKindOfClass:NSNumber.class]) {
-    out=[_hooks enableClass:p[@"class"] selector:p[@"selector"] classMethod:[p[@"classMethod"] boolValue]];if(!out[@"error"]) _methodProfiles[out[@"key"]]=@{@"class":p[@"class"],@"selector":p[@"selector"],@"classMethod":p[@"classMethod"]};
+    out=[self enableProfile:p];if(!out[@"error"]) { NSMutableDictionary *profile=[@{@"class":p[@"class"],@"selector":p[@"selector"],@"classMethod":p[@"classMethod"]} mutableCopy];if(p[@"encoding"]) profile[@"encoding"]=p[@"encoding"];_methodProfiles[out[@"key"]]=profile; }
    }
    else if([command isEqual:@"patchApply"] && [p[@"key"] isKindOfClass:NSString.class] && [p[@"patch"] isKindOfClass:NSDictionary.class]) {
     if(_savedPatches.count>=128 && !_savedPatches[p[@"key"]]) out=@{@"error":LXError(@"patch_limit",@"At most 128 saved patches per app")};

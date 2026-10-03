@@ -2,6 +2,7 @@
 #import "LXController.h"
 #import "LXApplications.h"
 #import "../static/LXStaticAnalyzer.h"
+#import "../shared/LXTypes.h"
 #import "../ui/LXBrowser.h"
 @interface LXApp : UIResponder <UIApplicationDelegate>
 @property(nonatomic,strong) UIWindow *window;
@@ -53,7 +54,7 @@
    });return;
   }
   if([row[@"action"] isEqual:@"export"]) { NSError *error=nil;NSURL *url=[self->_controller.store exportBundle:bundle error:&error];if(!url) { LXAlert(weakMenu,error.localizedDescription);return; }UIActivityViewController *share=[[UIActivityViewController alloc] initWithActivityItems:@[url] applicationActivities:nil];share.popoverPresentationController.sourceView=weakMenu.view;[weakMenu presentViewController:share animated:YES completion:nil];return; }
-  if([row[@"action"] isEqual:@"saved"]) { LXShowJSON(weakMenu,@"Saved patches",[self->_controller.store stateForBundle:bundle]);return; }
+  if([row[@"action"] isEqual:@"saved"]) { [self savedPatchesForBundle:bundle session:nil parent:weakMenu];return; }
   UIPasteboard.generalPasteboard.string=self->_controller.token;
   UIAlertController *alert=[UIAlertController alertControllerWithTitle:@"Connect selected app" message:@"The pairing key is copied internally. Open the app, tap three times with three fingers, and confirm Pair. Return here to activate and create patches. If no gesture appears, verify tweak injection and restart the target app." preferredStyle:UIAlertControllerStyleAlert];
   [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
@@ -89,7 +90,13 @@
  LXBrowser *view=[LXBrowser new];view.title=runtime?@"Runtime Loaded":@"Static Only";NSMutableArray *rows=[NSMutableArray new];
  for(NSDictionary *image in images) [rows addObject:@{@"title":image[@"name"],@"subtitle":[NSString stringWithFormat:@"%@ · %@",image[@"provenance"],image[@"path"]],@"image":image}];if(runtime) [rows addObject:@{@"title":@"Runtime Generated classes",@"subtitle":@"Registered classes without a Mach-O image",@"image":@{@"name":@"Runtime Generated",@"path":@"runtime://generated",@"kind":@"virtualClassGroup"}}];
  view.rows=rows;__weak LXApp *weak=self;__weak LXBrowser *weakView=view;
- view.selected=^(NSDictionary *row) { NSDictionary *image=row[@"image"];if(!runtime) { LXShowJSON(weakView,@"Static Only metadata",image);return; }
+ view.selected=^(NSDictionary *row) { NSDictionary *image=row[@"image"];if(!runtime) {
+   LXBrowser *classes=[LXBrowser new];classes.title=[image[@"name"] stringByAppendingString:@" · Static Only"];NSMutableArray *classRows=[NSMutableArray new];
+   for(NSDictionary *cls in image[@"classes"]) [classRows addObject:@{@"title":cls[@"name"],@"subtitle":@"Static Only · runtime verification required",@"class":cls}];
+   [classRows addObject:@{@"title":@"Mach-O metadata / limitations",@"subtitle":@"Architecture, UUID, dependencies and partial metadata",@"action":@"info"}];classes.rows=classRows;__weak LXBrowser *weakClasses=classes;
+   classes.selected=^(NSDictionary *item) { if([item[@"action"] isEqual:@"info"]) LXShowJSON(weakClasses,@"Static Only metadata",image);else [weak methods:item[@"class"][@"methods"] bundle:image[@"bundle"] session:s parent:weakClasses]; };
+   [weakView.navigationController pushViewController:classes animated:YES];return;
+  }
   LXBrowser *classes=[LXBrowser new];classes.title=image[@"name"];[weakView.navigationController pushViewController:classes animated:YES];[weak classes:image[@"path"] offset:0 accumulated:@[] session:s view:classes];
  };[parent.navigationController pushViewController:view animated:YES];
 }
@@ -107,41 +114,53 @@
  [self request:@"methods" payload:@{@"class":name,@"offset":@(offset)} session:s view:parent done:^(NSDictionary *p) {
   NSMutableArray *all=[previous mutableCopy];[all addObjectsFromArray:p[@"methods"] ?: @[]];
   if([p[@"next"] unsignedIntegerValue]<[p[@"total"] unsignedIntegerValue]) [weak loadMethods:name offset:[p[@"next"] unsignedIntegerValue] accumulated:all session:s parent:parent];
-  else [weak methods:all session:s parent:parent];
+  else [weak methods:all bundle:s.identity[@"bundle"] session:s parent:parent];
  }];
 }
-- (void)methods:(NSArray *)methods session:(LXSession *)s parent:(UIViewController *)parent {
+- (void)methods:(NSArray *)methods bundle:(NSString *)bundle session:(LXSession *)s parent:(UIViewController *)parent {
  LXBrowser *view=[LXBrowser new];view.title=@"Methods";NSMutableArray *rows=[NSMutableArray new];
  for(NSDictionary *method in methods) [rows addObject:@{@"title":[NSString stringWithFormat:@"%@ %@",[method[@"classMethod"] boolValue]?@"+":@"-",method[@"selector"]],@"subtitle":[NSString stringWithFormat:@"%@ · %@",method[@"encoding"],[method[@"supported"] boolValue]?@"Hook supported":method[@"unsupportedReason"]],@"method":method}];view.rows=rows;__weak LXApp *weak=self;__weak LXBrowser *weakView=view;
  view.selected=^(NSDictionary *row) {
   NSDictionary *m=row[@"method"];LXBrowser *detail=[LXBrowser new];detail.title=m[@"selector"];
-  detail.rows=@[@{@"title":@"Selector / type encoding / provenance",@"subtitle":m[@"encoding"],@"action":@"info"},@{@"title":@"Enable hook",@"subtitle":[m[@"supported"] boolValue]?@"Reviewed ABI":m[@"unsupportedReason"],@"action":@"enable",@"enabled":m[@"supported"]},@{@"title":@"Create / apply scalar patch",@"subtitle":@"Argument / return override; original always called",@"action":@"patch",@"enabled":m[@"supported"]},@{@"title":@"Disable hook",@"subtitle":@"Restores original if no conflict",@"action":@"disable",@"enabled":m[@"supported"]}];
+  detail.rows=@[@{@"title":@"Selector / type encoding / provenance",@"subtitle":m[@"encoding"],@"action":@"info"},@{@"title":@"Enable hook",@"subtitle":[m[@"supported"] boolValue]?@"Reviewed ABI":m[@"unsupportedReason"],@"action":@"enable",@"enabled":@(s!=nil && [m[@"supported"] boolValue])},@{@"title":@"Create / save scalar patch",@"subtitle":@"Save definition; verify runtime types before applying",@"action":@"patch",@"enabled":m[@"supported"]},@{@"title":@"Disable hook",@"subtitle":@"Restores original if no conflict",@"action":@"disable",@"enabled":@(s!=nil && [m[@"supported"] boolValue])}];
   __weak LXBrowser *weakDetail=detail;detail.selected=^(NSDictionary *item) {
    NSString *action=item[@"action"];if([action isEqual:@"info"]) { LXShowJSON(weakDetail,@"Method metadata",m);return; }
    if(![m[@"supported"] boolValue]) { LXAlert(weakDetail,m[@"unsupportedReason"]);return; }
    NSString *key=[NSString stringWithFormat:@"%@%@/%@",[m[@"classMethod"] boolValue]?@"+":@"-",m[@"class"],m[@"selector"]];
-   if([action isEqual:@"patch"]) { [weak editPatch:m key:key session:s parent:weakDetail];return; }
+   if([action isEqual:@"patch"]) { [weak editPatch:m key:key bundle:bundle session:s parent:weakDetail];return; }
    [weak request:[action isEqual:@"enable"]?@"hookEnable":@"hookDisable" payload:[action isEqual:@"enable"]?m:@{@"key":key} session:s view:weakDetail done:^(NSDictionary *result) { LXShowJSON(weakDetail,@"Hook result",result); }];
   };[weakView.navigationController pushViewController:detail animated:YES];
  };[parent.navigationController pushViewController:view animated:YES];
 }
-- (void)editPatch:(NSDictionary *)method key:(NSString *)key session:(LXSession *)session parent:(UIViewController *)parent {
+- (void)editPatch:(NSDictionary *)method key:(NSString *)key bundle:(NSString *)bundle session:(LXSession *)session parent:(UIViewController *)parent {
  UIAlertController *alert=[UIAlertController alertControllerWithTitle:@"Scalar patch" message:@"Leave a field empty to preserve its value. BOOL: 0 or 1. Only supported scalar fields are accepted. Original always runs; return override follows original." preferredStyle:UIAlertControllerStyleAlert];
- for(NSString *hint in @[@"Argument 1 override",@"Return value override"]) [alert addTextFieldWithConfigurationHandler:^(UITextField *field) { field.placeholder=hint;field.keyboardType=UIKeyboardTypeNumbersAndPunctuation; }];
+ NSDictionary *saved=[_controller.store stateForBundle:bundle][@"patches"][key];NSUInteger index=0;
+ for(NSString *hint in @[@"Argument 1 override",@"Return value override"]) { NSString *fieldKey=index++==0?@"argument":@"return";[alert addTextFieldWithConfigurationHandler:^(UITextField *field) { field.placeholder=hint;field.keyboardType=UIKeyboardTypeNumbersAndPunctuation;if([saved[fieldKey] isKindOfClass:NSNumber.class]) field.text=[saved[fieldKey] stringValue]; }]; }
  [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
- [alert addAction:[UIAlertAction actionWithTitle:@"Save and apply" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+ [alert addAction:[UIAlertAction actionWithTitle:session?@"Save and apply":@"Save patch" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
   (void)action;NSMutableDictionary *patch=[NSMutableDictionary new];NSArray *keys=@[@"argument",@"return"];
   for(NSUInteger i=0;i<2;i++) { NSString *text=[alert.textFields[i].text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];if(!text.length) continue;
    NSData *bytes=[text dataUsingEncoding:NSUTF8StringEncoding];id number=[NSJSONSerialization JSONObjectWithData:bytes options:NSJSONReadingFragmentsAllowed error:nil];if(![number isKindOfClass:NSNumber.class]) { LXAlert(parent,@"Enter a JSON number; BOOL uses 0 or 1.");return; }patch[keys[i]]=number;
   }
+  NSString *reason=LXPatchReason(patch,method[@"encoding"]);if(reason) { LXAlert(parent,reason);return; }
+  reason=[self->_controller.store savePatch:patch method:method bundle:bundle];if(reason) { LXAlert(parent,reason);return; }
+  if(!session) { LXAlert(parent,@"Patch saved for this app. Connect its Agent, activate analysis, then apply it from Saved patches. Enable saved patches on launch once transferred to the Agent. Static metadata has not been verified against a running process.");return; }
   [self request:@"hookEnable" payload:method session:session view:parent done:^(NSDictionary *result) { (void)result;[self request:@"patchApply" payload:@{@"key":key,@"patch":patch} session:session view:parent done:^(NSDictionary *applied) { LXShowJSON(parent,@"Patch applied",applied); }]; }];
  }]];[parent presentViewController:alert animated:YES completion:nil];
 }
-- (void)savedPatches:(LXSession *)session parent:(UIViewController *)parent {
- NSDictionary *state=[_controller.store stateForBundle:session.identity[@"bundle"]];NSDictionary *patches=state[@"patches"] ?: @{};NSDictionary *desired=state[@"desiredHooks"] ?: @{};
- LXBrowser *view=[LXBrowser new];view.title=@"Saved patches";NSMutableArray *rows=[NSMutableArray new];for(NSString *key in patches) [rows addObject:@{@"title":key,@"subtitle":[patches[key] description],@"key":key}];view.rows=rows;__weak LXBrowser *weak=view;
- view.selected=^(NSDictionary *row) { NSString *key=row[@"key"];NSDictionary *method=desired[key][@"request"];if(!method[@"class"]) { LXAlert(weak,@"Original method profile is unavailable; reopen method details.");return; }
-  [self request:@"hookEnable" payload:method session:session view:weak done:^(NSDictionary *result) { (void)result;[self request:@"patchApply" payload:@{@"key":key,@"patch":patches[key]} session:session view:weak done:^(NSDictionary *applied) { LXShowJSON(weak,@"Saved patch applied",applied); }]; }];
+- (void)savedPatches:(LXSession *)session parent:(UIViewController *)parent { [self savedPatchesForBundle:session.identity[@"bundle"] session:session parent:parent]; }
+- (void)savedPatchesForBundle:(NSString *)bundle session:(LXSession *)session parent:(UIViewController *)parent {
+ NSDictionary *state=[_controller.store stateForBundle:bundle];NSDictionary *patches=state[@"patches"] ?: @{};NSDictionary *desired=state[@"desiredHooks"] ?: @{};
+ LXBrowser *view=[LXBrowser new];view.title=@"Saved patches";NSMutableArray *rows=[NSMutableArray new];for(NSString *key in [[patches allKeys] sortedArrayUsingSelector:@selector(compare:)]) [rows addObject:@{@"title":key,@"subtitle":[NSString stringWithFormat:@"%@ · %@",session?@"Agent connected":@"Saved offline",patches[key]],@"key":key}];view.rows=rows;__weak LXBrowser *weak=view;
+ view.selected=^(NSDictionary *row) { NSString *key=row[@"key"];NSDictionary *method=desired[key][@"request"];
+  if(![method[@"class"] isKindOfClass:NSString.class] || ![method[@"selector"] isKindOfClass:NSString.class] || ![method[@"encoding"] isKindOfClass:NSString.class]) { LXAlert(weak,@"Saved method metadata is unavailable; reopen method details.");return; }
+  UIAlertController *menu=[UIAlertController alertControllerWithTitle:key message:@"Saved definitions are separate from running hook state. Applying always verifies the live method and delegates to its original implementation." preferredStyle:UIAlertControllerStyleActionSheet];
+  [menu addAction:[UIAlertAction actionWithTitle:@"Edit patch" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) { (void)action;[self editPatch:method key:key bundle:bundle session:session parent:weak]; }]];
+  if(session) {
+   [menu addAction:[UIAlertAction actionWithTitle:@"Apply patch" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) { (void)action;NSString *reason=LXPatchReason(patches[key],method[@"encoding"]);if(reason) { LXAlert(weak,reason);return; }[self request:@"hookEnable" payload:method session:session view:weak done:^(NSDictionary *result) { (void)result;[self request:@"patchApply" payload:@{@"key":key,@"patch":patches[key]} session:session view:weak done:^(NSDictionary *applied) { LXShowJSON(weak,@"Saved patch applied",applied); }]; }]; }]];
+   [menu addAction:[UIAlertAction actionWithTitle:@"Disable patch" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) { (void)action;[self request:@"hookDisable" payload:@{@"key":key} session:session view:weak done:^(NSDictionary *result) { LXShowJSON(weak,@"Patch disabled",result); }]; }]];
+  }
+  [menu addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];menu.popoverPresentationController.sourceView=weak.view;[weak presentViewController:menu animated:YES completion:nil];
  };[parent.navigationController pushViewController:view animated:YES];
 }
 - (void)logs:(NSArray *)logs parent:(UIViewController *)parent {

@@ -1,6 +1,7 @@
 #import "LXTypes.h"
 #import <objc/runtime.h>
 #include "../core/encoding.h"
+#include <math.h>
 NSArray *LXDescribeEncoding(NSString *s) {
  LXType t[128];size_t n=0;if(!lx_signature(s.UTF8String,t,128,&n)) return @[@{@"error":@"Unparseable encoding"}];
  NSMutableArray *out=[NSMutableArray new];
@@ -34,4 +35,30 @@ NSString *LXHookReason(NSString *name,NSString *sel,BOOL classMethod,NSString *e
  if(![shape isEqual:expected]) return @"Encoding differs from reviewed declaration";
  if(n!=3 && n!=4) return @"Only zero or one explicit argument supported";
  return nil;
+}
+
+NSString *LXStaticHookReason(NSString *bundle,NSString *name,NSString *selector,BOOL meta,NSString *encoding) {
+ // Offline data does not authorize arbitrary prototypes or identify a system UIKit class.
+ if(![bundle isEqual:@"jp.league.runtimeatlas.fixture"] || ![name isEqual:@"LXFixture"]) return @"No reviewed nonvariadic declaration for this bundle/class; browse only";
+ NSDictionary *approved=@{@"-ping":@"v",@"-echo:":@"@@",@"-addOne:":@"qq",@"-invert:":@"BB",@"-scale:":@"ff",@"-doubleValue:":@"dd",@"+classValue":@"q"};
+ NSString *expected=approved[[NSString stringWithFormat:@"%@%@",meta?@"+":@"-",selector]];
+ LXType types[16];size_t count=0;if(!expected || !lx_signature(encoding.UTF8String,types,16,&count)) return @"No reviewed declaration or invalid encoding";
+ NSMutableString *shape=[NSMutableString new];for(size_t i=0;i<count;i++) if(i!=1 && i!=2) { if(types[i].length!=1) return @"Complex ABI unsupported";[shape appendFormat:@"%c",types[i].kind]; }
+ return [shape isEqual:expected]?nil:@"Encoding differs from reviewed arm64 declaration";
+}
+NSString *LXPatchReason(NSDictionary *patch,NSString *encoding) {
+ if(![patch isKindOfClass:NSDictionary.class] || patch.count>2) return @"Expected argument / return scalar fields";
+ NSArray *types=LXDescribeEncoding(encoding);
+ for(NSString *field in patch) {
+  NSUInteger index=[field isEqual:@"return"]?0:[field isEqual:@"argument"]?3:NSUIntegerMax;
+  if(index>=types.count) return @"Unknown field or absent argument";
+  NSString *type=types[index][@"encoding"];id value=patch[field];
+  if(![value isKindOfClass:NSNumber.class] || !isfinite([value doubleValue])) return @"A finite JSON scalar number is required";
+  BOOL valid=NO;
+  if([type isEqual:@"B"] || [type isEqual:@"c"]) valid=[value doubleValue]==0 || [value doubleValue]==1;
+  else if([type isEqual:@"q"]) { NSDecimalNumber *number=[NSDecimalNumber decimalNumberWithDecimal:[value decimalValue]];valid=[number compare:[NSDecimalNumber decimalNumberWithString:@"-9223372036854775808"]]!=NSOrderedAscending && [number compare:[NSDecimalNumber decimalNumberWithString:@"9223372036854775807"]]!=NSOrderedDescending && [number compare:[NSDecimalNumber decimalNumberWithString:[value stringValue]]]==NSOrderedSame && floor([value doubleValue])==[value doubleValue]; }
+  else if([type isEqual:@"f"]) valid=isfinite([value floatValue]);
+  else if([type isEqual:@"d"]) valid=YES;
+  if(!valid) return @"Only BOOL, signed 64-bit integer, float and double fields within range can be patched";
+ }return nil;
 }

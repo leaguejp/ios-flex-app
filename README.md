@@ -77,3 +77,9 @@ Pairing authentication remains internal HMAC rather than being removed. Clipboar
 **Analyze installed bundle** performs bounded static analysis from the installed-app menu without starting the app or connecting an Agent, using the bundle URL returned by LaunchServices. Filesystem denial returns diagnostics and the Agent-side bundle analysis remains available. This shows Mach-O/load-command/Objective-C string-pool information marked Static Only; it does not claim complete class/method reconstruction.
 
 **Runtime Generated classes** is a virtual browser group for registered classes without a Mach-O image. It has no fabricated header/file path in the runtime model. Image add/remove events invalidate caches. Logging also supports plain pthread callers without an existing autorelease pool; the original implementation remains outside the logger's pool.
+
+### Offline app analysis and patch authoring
+
+Select an installed app → **Analyze installed bundle** → image → class → method → **Create / save scalar patch**. This works without a running target or pairing token. Partial arm64 class/metaclass relationships are decoded from classic pointers, relative method lists and supported dyld 64-bit chains. Every static result remains **Static Only**; metadata cannot establish that a class is currently loaded.
+
+Only reviewed declarations are patchable: the fixture's scalar methods support offline authoring; arbitrary third-party methods remain browse-only with an unsupported reason. Existing UIKit reviewed profiles can be edited through runtime browsing. Use **Saved patches / settings** to edit offline definitions. After connecting and activating the target Agent, use **Saved patches → Apply patch**; the Agent rejects changed method encodings. Enable **saved patches on launch** after transfer to restore on later launches. Unsupported authenticated chains/categories/encrypted files produce diagnostics; this is not a complete Flex 3 replacement.

@@ -1,6 +1,7 @@
 #include "macho.h"
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 static uint32_t u32(const uint8_t *p,int swap) {
  return swap?((uint32_t)p[0]<<24)|((uint32_t)p[1]<<16)|((uint32_t)p[2]<<8)|p[3]:
  ((uint32_t)p[3]<<24)|((uint32_t)p[2]<<16)|((uint32_t)p[1]<<8)|p[0];
@@ -74,3 +75,4 @@ int lx_macho(const uint8_t *d,size_t n,LXEmit emit,void *ctx,char *e,size_t es) 
  }
  return thin(d,n,emit,ctx,e,es);
 }
+#include "objc_metadata.inc"

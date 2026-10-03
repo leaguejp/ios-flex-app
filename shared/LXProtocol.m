@@ -48,6 +48,13 @@ NSString *LXResultReason(NSString *command,NSDictionary *payload,NSDictionary *r
    if([command isEqual:@"methods"] && ![record[@"types"] isKindOfClass:NSArray.class]) return @"Malformed method types";
    if([command isEqual:@"logs"] && ![record[@"arguments"] isKindOfClass:NSArray.class]) return @"Malformed logged arguments";
    if([@[@"images",@"classes",@"methods",@"static"] containsObject:command] && ![record[@"provenance"] isEqual:[command isEqual:@"static"]?@"Static Only":@"Runtime Loaded"]) return @"Unexpected source provenance";
+   if([command isEqual:@"static"] && record[@"classes"]) {
+    if(![record[@"bundle"] isKindOfClass:NSString.class] || ![record[@"classes"] isKindOfClass:NSArray.class] || [record[@"classes"] count]>20000) return @"Malformed static classes";
+    for(id cls in record[@"classes"]) {
+     if(!LXFields(cls,@[@"name",@"image",@"provenance"],@[]) || ![cls[@"provenance"] isEqual:@"Static Only"] || ![cls[@"methods"] isKindOfClass:NSArray.class] || [cls[@"methods"] count]>20000) return @"Malformed static class";
+     for(id method in cls[@"methods"]) if(!LXFields(method,@[@"class",@"selector",@"encoding",@"unsupportedReason",@"provenance"],@[@"supported",@"classMethod"]) || ![method[@"provenance"] isEqual:@"Static Only"] || ![method[@"types"] isKindOfClass:NSArray.class]) return @"Malformed static method";
+    }
+   }
   }
  }
  if([command isEqual:@"classes"] || [command isEqual:@"methods"]) {

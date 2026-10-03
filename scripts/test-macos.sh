@@ -13,5 +13,5 @@ clang -fobjc-arc -fblocks -Wall -Wextra -Werror tests/ipc_test.m shared/LXChanne
 build/ipc-test | tee artifacts/tests/ipc.txt
 python3 -m unittest discover -s tests -p 'test_*.py' -v 2>&1 | tee artifacts/tests/python.txt
 
-clang -fobjc-arc -fblocks -Wall -Wextra -Werror tests/store_test.m controller/LXStore.m controller/LXController.m shared/LXChannel.m shared/LXProtocol.m shared/LXAuth.m -framework Foundation -o build/store-test
+clang -fobjc-arc -fblocks -Wall -Wextra -Werror tests/store_test.m shared/LXTypes.m core/encoding.c controller/LXStore.m controller/LXController.m shared/LXChannel.m shared/LXProtocol.m shared/LXAuth.m -framework Foundation -o build/store-test
 build/store-test | tee artifacts/tests/store.txt

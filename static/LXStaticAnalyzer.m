@@ -1,5 +1,6 @@
 #import "LXStaticAnalyzer.h"
 #include "../core/macho.h"
+#import "../shared/LXTypes.h"
 static void LXStaticEmit(void *context,const char *key,const char *value) {
  if(!strcmp(key,"provenance")) return; // Record provenance is a scalar, never a metadata array.
  NSMutableDictionary *record=(__bridge NSMutableDictionary *)context;size_t length=strlen(value);NSUInteger used=[record[@"metadataBytes"] unsignedIntegerValue];
@@ -9,6 +10,18 @@ static void LXStaticEmit(void *context,const char *key,const char *value) {
  NSMutableArray *values=record[k];if(!values) { values=[NSMutableArray new];record[k]=values; }
  if(values.count<20000) [values addObject:v];
 }
+static void LXStaticClass(void *context,const char *name,int meta,const char *selector,const char *encoding) {
+ NSMutableDictionary *record=(__bridge NSMutableDictionary *)context;
+ NSString *className=@(name);if(!className) { record[@"metadataError"]=@"invalid_utf8";return; }
+ NSMutableDictionary *classes=record[@"classMap"];NSMutableDictionary *cls=classes[className];
+ if(!cls) { if(classes.count>=20000) { record[@"metadataTruncated"]=@YES;return; }cls=[@{@"name":className,@"image":record[@"path"],@"provenance":@"Static Only",@"methods":[NSMutableArray new]} mutableCopy];classes[className]=cls; }
+ if(!selector) return;
+ NSString *sel=@(selector),*type=@(encoding);if(!sel || !type) { record[@"metadataError"]=@"invalid_utf8";return; }
+ NSUInteger bytes=[record[@"metadataBytes"] unsignedIntegerValue]+strlen(name)+strlen(selector)+strlen(encoding)+256;
+ if(bytes>128*1024) { record[@"metadataTruncated"]=@YES;return; }record[@"metadataBytes"]=@(bytes);
+ NSString *reason=LXStaticHookReason(record[@"bundle"],className,sel,meta!=0,type);
+ [cls[@"methods"] addObject:@{@"class":className,@"classMethod":@(meta!=0),@"selector":sel,@"encoding":type,@"types":LXDescribeEncoding(type),@"image":record[@"path"],@"provenance":@"Static Only",@"supported":@(reason==nil),@"unsupportedReason":reason ?: @"",@"requiresRuntimeValidation":@YES}];
+}
 @implementation LXStaticAnalyzer
 - (NSDictionary *)analyzeBundle:(NSString *)path {
  NSMutableArray *images=[NSMutableArray new],*errors=[NSMutableArray new];NSURL *root=[NSURL fileURLWithPath:path isDirectory:YES];
@@ -17,6 +30,7 @@ static void LXStaticEmit(void *context,const char *key,const char *value) {
  NSDirectoryEnumerator *enumerator=[NSFileManager.defaultManager enumeratorAtURL:root includingPropertiesForKeys:@[NSURLIsRegularFileKey,NSURLFileSizeKey,NSURLIsSymbolicLinkKey] options:NSDirectoryEnumerationSkipsHiddenFiles errorHandler:^BOOL(NSURL *url,NSError *e) {
   if(errors.count<256) [errors addObject:@{@"path":url.path,@"code":@"io_error",@"detail":e.localizedDescription}];return errors.count<256;
  }];
+ NSString *bundle=[NSBundle bundleWithPath:path].bundleIdentifier ?: @"";
  NSUInteger visited=0,totalBytes=0;
  for(NSURL *url in enumerator) { @autoreleasepool {
   if(++visited>10000 || images.count>=256 || errors.count>=256) { [errors addObject:@{@"code":@"bundle_limit"}];break; }
@@ -32,12 +46,17 @@ static void LXStaticEmit(void *context,const char *key,const char *value) {
   if(!data || !lx_macho(data.bytes,data.length,LXStaticEmit,(__bridge void *)record,error,sizeof(error)))
    [errors addObject:@{@"path":url.path,@"code":data?@(error):@"io_error",@"detail":io.localizedDescription ?: @"Static metadata may be partial"}];
   else {
+   record[@"classMap"]=[NSMutableDictionary new];record[@"bundle"]=bundle;char objcError[128]={0};
+   BOOL decoded=lx_macho_objc(data.bytes,data.length,LXStaticClass,(__bridge void *)record,objcError,sizeof(objcError));
+   NSDictionary *map=record[@"classMap"];NSMutableArray *classes=[NSMutableArray new];for(NSString *name in [[map allKeys] sortedArrayUsingSelector:@selector(compare:)]) [classes addObject:map[name]];
+   record[@"classes"]=classes;[record removeObjectForKey:@"classMap"];record[@"objcRelationshipsComplete"]=@(decoded && ![record[@"metadataTruncated"] boolValue]);
+   if(!decoded) [errors addObject:@{@"path":url.path,@"code":@(objcError),@"detail":@"Objective-C relationships are partial; unresolved entries are not inferred"}];
    if(record[@"metadataError"]) [errors addObject:@{@"path":url.path,@"code":record[@"metadataError"],@"detail":@"A metadata string is not valid UTF-8; omitted from partial result"}];
    NSUInteger bytes=[NSJSONSerialization dataWithJSONObject:record options:0 error:nil].length;
    if(totalBytes+bytes>2*1024*1024) { [errors addObject:@{@"code":@"metadata_budget",@"detail":@"Static results capped at 2 MiB"}];break; }
    totalBytes+=bytes;[images addObject:record];
   }
  }}
- return @{@"images":images,@"errors":errors,@"provenance":@"Static Only",@"limitations":@[@"Objective-C string pools only; class/method relationships and chained fixups are not resolved"]};
+ return @{@"images":images,@"errors":errors,@"provenance":@"Static Only",@"limitations":@[@"Partial arm64 class/metaclass method relationships; categories, bound external class references, arm64e authentication, multiple chain starts and Swift-only metadata are unsupported"]};
 }
 @end

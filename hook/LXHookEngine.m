@@ -117,20 +117,7 @@ static IMP LXCreate(LXRecord *r,NSString *selector) {
 - (NSDictionary *)configurePatch:(NSDictionary *)patch key:(NSString *)key {
  [_lock lock];@try {
   LXRecord *r=_records[key];if(!r.enabled) return @{ @"error":LXError(@"hook_inactive",@"Enable the reviewed hook before applying a patch") };
-  if(![patch isKindOfClass:NSDictionary.class] || patch.count>2) return @{ @"error":LXError(@"invalid_patch",@"Expected argument / return scalar fields") };
-  NSArray *types=LXDescribeEncoding(r.encoding);
-  for(NSString *field in patch) {
-   NSUInteger index=[field isEqual:@"return"]?0:[field isEqual:@"argument"]?3:NSUIntegerMax;
-   if(index>=types.count) return @{ @"error":LXError(@"invalid_patch",@"Unknown field or absent argument") };
-   NSString *encoding=types[index][@"encoding"];id value=patch[field];
-   if(![value isKindOfClass:NSNumber.class] || !isfinite([value doubleValue])) return @{ @"error":LXError(@"invalid_patch",@"A finite JSON scalar number is required") };
-   BOOL valid=NO;
-   if([encoding isEqual:@"B"] || [encoding isEqual:@"c"]) valid=[value doubleValue]==0 || [value doubleValue]==1;
-   else if([encoding isEqual:@"q"]) { NSDecimalNumber *number=[NSDecimalNumber decimalNumberWithDecimal:[value decimalValue]];valid=[number compare:[NSDecimalNumber decimalNumberWithString:@"-9223372036854775808"]]!=NSOrderedAscending && [number compare:[NSDecimalNumber decimalNumberWithString:@"9223372036854775807"]]!=NSOrderedDescending && [number compare:[NSDecimalNumber decimalNumberWithString:[value stringValue]]]==NSOrderedSame && floor([value doubleValue])==[value doubleValue]; }
-   else if([encoding isEqual:@"f"]) valid=isfinite([value floatValue]);
-   else if([encoding isEqual:@"d"]) valid=YES;
-   if(!valid) return @{ @"error":LXError(@"unsupported_patch",@"Only BOOL, signed 64-bit integer, float and double fields within range can be patched") };
-  }
+  NSString *reason=LXPatchReason(patch,r.encoding);if(reason) return @{ @"error":LXError(@"unsupported_patch",reason) };
   r.patch=patch;return @{ @"key":key,@"patch":patch,@"enabled":@YES };
  } @finally { [_lock unlock]; }
 }

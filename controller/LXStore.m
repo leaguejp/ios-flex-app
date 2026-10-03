@@ -1,5 +1,6 @@
 #import "LXStore.h"
 #import "../shared/LXProtocol.h"
+#import "../shared/LXTypes.h"
 #import <CommonCrypto/CommonDigest.h>
 // Saved JSON is untrusted, including syntactically valid but incorrectly typed records.
 static NSDictionary *LXStoredState(id value) {
@@ -47,6 +48,16 @@ static NSDictionary *LXStoredState(id value) {
  NSData *data=[NSJSONSerialization dataWithJSONObject:bounded options:NSJSONWritingSortedKeys error:nil];
  while(data.length>16*1024*1024 && history.count) { [history removeObjectAtIndex:0];bounded[@"history"]=history;bounded[@"historyTruncated"]=@YES;data=[NSJSONSerialization dataWithJSONObject:bounded options:NSJSONWritingSortedKeys error:nil]; }
  return data && data.length<=16*1024*1024 && [data writeToURL:[self file:bundle] options:NSDataWritingAtomic error:nil];
+}
+- (NSString *)savePatch:(NSDictionary *)patch method:(NSDictionary *)method bundle:(NSString *)bundle {
+ if(!bundle.length || ![method isKindOfClass:NSDictionary.class] || ![method[@"class"] isKindOfClass:NSString.class] || ![method[@"selector"] isKindOfClass:NSString.class] || ![method[@"encoding"] isKindOfClass:NSString.class] || ![method[@"classMethod"] isKindOfClass:NSNumber.class] || ![method[@"supported"] isKindOfClass:NSNumber.class] || ![method[@"supported"] boolValue]) return @"Unsupported or malformed method definition";
+ NSString *reason=LXPatchReason(patch,method[@"encoding"]);if(reason) return reason;
+ if([method[@"provenance"] isEqual:@"Static Only"]) { reason=LXStaticHookReason(bundle,method[@"class"],method[@"selector"],[method[@"classMethod"] boolValue],method[@"encoding"]);if(reason) return reason; }
+ else if(![method[@"provenance"] isEqual:@"Runtime Loaded"]) return @"Unknown method provenance";
+ NSString *key=[NSString stringWithFormat:@"%@%@/%@",[method[@"classMethod"] boolValue]?@"+":@"-",method[@"class"],method[@"selector"]];
+ NSMutableDictionary *state=[[self stateForBundle:bundle] mutableCopy],*patches=[state[@"patches"] mutableCopy] ?: [NSMutableDictionary new],*desired=[state[@"desiredHooks"] mutableCopy] ?: [NSMutableDictionary new];
+ patches[key]=patch;desired[key]=@{@"request":method,@"enabled":desired[key][@"enabled"] ?: @NO};state[@"patches"]=patches;state[@"desiredHooks"]=desired;state[@"updatedAt"]=@(NSDate.date.timeIntervalSince1970);
+ return [self save:state bundle:bundle]?nil:@"Patch could not be saved";
 }
 - (NSURL *)exportBundle:(NSString *)bundle error:(NSError **)error {
  NSMutableDictionary *out=[[self stateForBundle:bundle] mutableCopy];out[@"bundle"]=bundle;out[@"schemaVersion"]=@1;out[@"exportedAt"]=@(NSDate.date.timeIntervalSince1970);

@@ -9,12 +9,12 @@ sdk=$(xcrun --sdk iphonesimulator --show-sdk-path)
 arch=$(uname -m)
 app=build/controller-simulator/RuntimeAtlas.app
 xcrun --sdk iphonesimulator clang -target "$arch-apple-ios15.0-simulator" -isysroot "$sdk" -std=c11 -Wall -Wextra -Werror -c core/macho.c -o build/controller-simulator/macho.o
-xcrun --sdk iphonesimulator clang -target "$arch-apple-ios15.0-simulator" -isysroot "$sdk" -fobjc-arc -fblocks -DLX_CONTROLLER_AUTOMATION=1 -Wall -Wextra -Werror controller/App.m controller/LXApplications.m controller/LXController.m controller/LXStore.m static/LXStaticAnalyzer.m build/controller-simulator/macho.o ui/LXBrowser.m shared/LXProtocol.m shared/LXChannel.m shared/LXAuth.m -framework UIKit -framework Foundation -o "$app/RuntimeAtlas"
+xcrun --sdk iphonesimulator clang -target "$arch-apple-ios15.0-simulator" -isysroot "$sdk" -fobjc-arc -fblocks -DLX_CONTROLLER_AUTOMATION=1 -Wall -Wextra -Werror controller/App.m controller/LXApplications.m controller/LXController.m controller/LXStore.m static/LXStaticAnalyzer.m shared/LXTypes.m core/encoding.c build/controller-simulator/macho.o ui/LXBrowser.m shared/LXProtocol.m shared/LXChannel.m shared/LXAuth.m -framework UIKit -framework Foundation -o "$app/RuntimeAtlas"
 cp controller/Resources/* "$app/"
 codesign --force --sign - "$app"
 xcrun simctl install "$udid" "$app"
 xcrun simctl install "$udid" build/fixture-iphonesimulator/AtlasTestTarget.app
-clang -fobjc-arc -fblocks -Wall -Wextra -Werror tests/simulator_integration.m controller/LXController.m controller/LXStore.m shared/LXChannel.m shared/LXProtocol.m shared/LXAuth.m -framework Foundation -o build/simulator-integration
+clang -fobjc-arc -fblocks -Wall -Wextra -Werror tests/simulator_integration.m shared/LXTypes.m core/encoding.c controller/LXController.m controller/LXStore.m shared/LXChannel.m shared/LXProtocol.m shared/LXAuth.m -framework Foundation -o build/simulator-integration
 LX_SIMULATOR_UDID="$udid" build/simulator-integration | tee artifacts/simulator/integration.txt
 xcrun simctl terminate "$udid" jp.league.runtimeatlas.fixture
 # Same source, distinct application bundle: verifies UIKit support is not fixture-gated.
@@ -34,7 +34,14 @@ with open('artifacts/simulator/inventory-test.json') as stream: result=json.load
 assert any(app['bundle']=='jp.league.runtimeatlas.fixture' for app in result['applications']), result
 assert result['static']['images'], result
 assert all(image['provenance']=='Static Only' for image in result['static']['images'])
-print('Controller inventory / offline bundle analysis PASS: installed fixture selected without an Agent connection')
+classes=[cls for image in result['static']['images'] for cls in image.get('classes',[])]
+fixture=next(cls for cls in classes if cls['name']=='LXFixture')
+methods=fixture['methods']
+assert any(m['selector']=='addOne:' and m['supported'] and not m['classMethod'] for m in methods), methods
+assert any(m['selector']=='classValue' and m['supported'] and m['classMethod'] for m in methods), methods
+assert any(not m['supported'] and m['unsupportedReason'] for m in methods), methods
+assert all(m['provenance']=='Static Only' and m['requiresRuntimeValidation'] for m in methods)
+print('Controller inventory / offline class and method analysis PASS: fixture instance/class signatures and unsupported reasons without an Agent connection')
 PY
 xcrun simctl io "$udid" screenshot artifacts/simulator/controller.png
 xcrun simctl launch "$udid" jp.league.runtimeatlas.fixture
