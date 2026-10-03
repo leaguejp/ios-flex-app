@@ -1,6 +1,7 @@
 #import "LXStaticAnalyzer.h"
 #include "../core/macho.h"
 static void LXStaticEmit(void *context,const char *key,const char *value) {
+ if(!strcmp(key,"provenance")) return; // Record provenance is a scalar, never a metadata array.
  NSMutableDictionary *record=(__bridge NSMutableDictionary *)context;size_t length=strlen(value);NSUInteger used=[record[@"metadataBytes"] unsignedIntegerValue];
  if(length>=16384 || used+length>128*1024) { record[@"metadataTruncated"]=@YES;return; }
  record[@"metadataBytes"]=@(used+length);NSString *k=@(key),*v=@(value);

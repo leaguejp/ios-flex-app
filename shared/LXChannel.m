@@ -5,6 +5,7 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <errno.h>
+#include <stdatomic.h>
 static BOOL LXRead(int fd,void *bytes,size_t count) {
  uint8_t *p=bytes;
  while(count) { ssize_t n=recv(fd,p,count,0);if(n<0 && errno==EINTR) continue;if(n<=0) return NO;p+=n;count-=(size_t)n; }
@@ -54,7 +55,8 @@ static NSError *LXSocketError(void) { return [NSError errorWithDomain:NSPOSIXErr
  return [[self alloc] initWithSocket:fd];
 }
 @end
-@implementation LXListener { int _fd; BOOL _running; }
+@implementation LXListener { int _fd; atomic_bool _running; }
+- (instancetype)init { if((self=[super init])) { _fd=-1;atomic_init(&_running,false); }return self; }
 - (BOOL)start:(NSError **)error {
  _fd=socket(AF_INET,SOCK_STREAM,0);if(_fd<0) { if(error)*error=LXSocketError();return NO; }
  int one=1;setsockopt(_fd,SOL_SOCKET,SO_REUSEADDR,&one,sizeof(one));

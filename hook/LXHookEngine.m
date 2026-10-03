@@ -116,7 +116,7 @@ static IMP LXCreate(LXRecord *r,NSString *selector) {
  uint64_t elapsed=LXClock()-start;[_lock lock];@try {
  if(r.enabled) {
   uint64_t thread=0;pthread_threadid_np(NULL,&thread);
-  NSDictionary *event=@{@"hook":r.key,@"class":r.className,@"selector":NSStringFromSelector(r.selector),@"encoding":r.encoding,@"types":LXDescribeEncoding(r.encoding),@"time":@(wall),@"thread":@(thread),@"durationNs":@(elapsed),@"arguments":args,@"return":result ?: NSNull.null,@"exception":@(threw)};
+  NSDictionary *event=@{@"hook":r.key,@"class":r.className,@"selector":NSStringFromSelector(r.selector),@"encoding":r.encoding,@"types":LXDescribeEncoding(r.encoding),@"time":@(wall),@"thread":@(thread),@"durationNs":@(elapsed),@"arguments":args,@"return":threw?NSNull.null:result ?: NSNull.null,@"exception":@(threw)};
   NSData *data=[NSJSONSerialization dataWithJSONObject:event options:0 error:nil];
   if(data) { [_events addObject:event];_bytes+=data.length;
    while(_events.count>1000 || _bytes>1024*1024) { _bytes-=[NSJSONSerialization dataWithJSONObject:_events[0] options:0 error:nil].length;[_events removeObjectAtIndex:0]; } }
