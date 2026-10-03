@@ -54,7 +54,7 @@ Parser recognizes objects, blocks, Class, SEL, pointers, integer/BOOL/float/doub
 
 ## Limitations
 
-Static parser supports 64-bit thin/fat files, load commands, CPU, UUID, dependencies, encryption errors and Objective-C string pools. It does not resolve class/method associations, chained fixups, Swift metadata, encrypted images or 32-bit images. Unsupported/unknown commands are retained as metadata. The runtime remains authoritative for loaded information. No static evidence can enable hooks.
+Static parser supports 64-bit thin/fat files, load commands, CPU, UUID, dependencies, encryption errors and Objective-C string pools. It does not resolve class/method associations, chained fixups, Swift metadata, encrypted images or 32-bit images. Known uninterpreted commands are retained as metadata; unknown/future command IDs return structured errors. The runtime remains authoritative for loaded information. No static evidence can enable hooks.
 
 Third-party IMP conflicts are detected and not blindly overwritten; Objective-C runtime exposes no public atomic IMP compare-and-swap. Concurrent external mutation is a documented limit. Retired trampolines remain alive for in-flight/third-party chains, bounded to 256 generations per process. Hook history is per bundle; live state is only Agent's state, never assumed from persisted settings.
 

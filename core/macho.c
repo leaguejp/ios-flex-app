@@ -48,6 +48,9 @@ static int thin(const uint8_t *d,size_t n,LXEmit emit,void *ctx,char *err,size_t
     }
    }
   } else {
+   // Preserve known-but-uninterpreted load commands; reject future/unknown IDs structurally.
+   uint32_t base=cmd & 0x7fffffffu;
+   if(base==0 || base>0x38) return fail(err,es,"unknown_load_command");
    snprintf(val,sizeof(val),"0x%x",cmd);emit(ctx,"load_command",val);
    if(cmd==0x80000034) emit(ctx,"limitation","chained_fixups_not_resolved");
   }
