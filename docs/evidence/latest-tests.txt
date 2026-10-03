@@ -1,0 +1,6 @@
+Build source 614b9d2b22b3f2923a71313d1d24414ebafbfe80
+CI run 37139670215: both jobs SUCCESS
+Simulator integration PASS: scalar patches, persisted launch restoration, actual Agent, Controller sessions, IPC, loaded images/classes/methods, 7 hooks/originals/logs/disable, static provenance, per-bundle persistence and export
+Simulator results are not physical iOS sandbox or jailbreak validation.
+Secondary bundle PASS: 4 SDK-reviewed UIKit hooks, scalar argument patches, originals/arguments/logs/disable; fixture declarations rejected outside fixture bundle
+Controller inventory / offline static analysis PASS: two installed fixture bundles; one Static Only image; no Agent connection required.

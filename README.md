@@ -27,13 +27,13 @@ Install the matching artifact via Sileo/Zebra or `dpkg -i` in the appropriate ja
 
 1. Open Runtime Atlas and select an installed application. **Enable analysis / open app** copies a fresh internal pairing key and opens the target when LaunchServices permits it. Inventory failure falls back to connected Agents.
 2. Open the owned/authorized target. Tap three times with three fingers, confirm the prefilled pairing key and pair (paste manually if clipboard access is unavailable). TestTarget also has an explicit Pair button.
-3. Return promptly to Controller. Select the connected process (PID, executable, bundle, Agent status), then **Activate Agent**.
+3. Return promptly to Controller. Select the same application; PID/executable/Agent status are under **Connection details**. Choose **Activate Agent**.
 4. Search **Runtime Loaded images → class → method**. Both instance/metaclass methods show selector, raw encoding, parsed types and unsupported reason. Search applies at each image/class/method level.
 5. In TestTarget select `LXFixture`, enable a reviewed hook, return to TestTarget and call methods, then inspect **Logs** in Controller. Disable hook and repeat to verify original behavior.
 6. **Static Only bundle** scans the target's own bundle/embedded Mach-O files through Agent. Static string pools are partial evidence, not runtime classes. Inspect errors/limitations in saved history.
-7. **Export JSON** fetches logs and hook state, saves per-bundle settings/history, and opens the system share sheet. Hook preferences persist but are never automatically reactivated in a new process.
+7. **Export JSON** fetches logs and hook state, saves per-bundle settings/history, and opens the system share sheet. Logging-only hooks require explicit activation. Saved value patches can restore only with the per-app launch policy described below.
 
-Controller's ordinary background task provides a short OS-controlled grace period. It is **not an always-running broker**. Suspension or loss of connection disables logging/hooks; pair again when necessary. Long background capture needs a separately validated broker and is outside this MVP. Connected Agents form the selectable process list; unpaired processes, SpringBoard, Apple applications and daemons are excluded.
+Controller's ordinary background task provides a short OS-controlled grace period. It is **not an always-running broker**. Suspension or loss of connection disables interactive hooks; explicitly authorized launch patches may continue; pair again when necessary. Long background capture needs a separately validated broker and is outside this MVP. Installed applications form the selection list; unpaired apps show Agent Offline. Connection identity is diagnostic detail. SpringBoard, Apple applications and daemons are excluded.
 
 ## Hook signature support matrix
 
@@ -48,6 +48,10 @@ Encoding alone cannot identify variadic methods, object ownership or all ABI con
 | `- (float)scale:(float)value` | `f@:f` | Yes |
 | `- (double)doubleValue:(double)value` | `d@:d` | Yes |
 | `+ (long long)classValue` | `q@:` | Yes, metaclass |
+| `UIView -setHidden:(BOOL)` | `v@:B` | Yes, system UIKit class |
+| `UIView -setAlpha:(CGFloat)` | `v@:d` | Yes, system UIKit class |
+| `UIViewController -viewWillAppear:(BOOL)` | `v@:B` | Yes, system UIKit class |
+| `UIViewController -viewDidAppear:(BOOL)` | `v@:B` | Yes, system UIKit class |
 | Struct/union/array/vector/pointer/block argument, variadic, method family, unknown or unreviewed declaration | any | No, reason shown |
 
 Parser recognizes objects, blocks, Class, SEL, pointers, integer/BOOL/float/double, arrays, structs, unions, qualifiers and bitfields. Recognized does not mean hookable. No remote injection/task_for_pid, arbitrary signature cast, object `description` logging or private IPC entitlement. Original exceptions propagate. Logs contain pointer/class identity for objects, finite scalar values, wall time, thread ID, selector, encoding and monotonic duration; bounded at 1000 events / 1 MiB.

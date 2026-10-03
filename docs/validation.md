@@ -1,6 +1,6 @@
 # Validation record
 
-Recorded 2026-10-04 JST. Build source revision: `c512e8efe4f02eb0a2ca6a3e5e227664b8de421e`. [Final source build run 37136189212](https://github.com/leaguejp/ios-flex-app/actions/runs/37136189212): **both jobs SUCCESS**. Documentation/evidence-only follow-up does not change the tested source.
+Recorded 2026-10-04 JST. Build source revision: `614b9d2b22b3f2923a71313d1d24414ebafbfe80`. [Final source build run 37139670215](https://github.com/leaguejp/ios-flex-app/actions/runs/37139670215): **both jobs SUCCESS**. Documentation/evidence-only follow-up does not change the tested source.
 
 ## Environment and commands
 
@@ -26,17 +26,19 @@ bash scripts/preview-simulator.sh   # embedded-fixture Agent + real Controller b
 | Mach-O bounds/sanitizers | PASS: ASan+UBSan, truncated header/load command, UUID, encryption rejection, unknown-command structured error, 20,000 deterministic malformed inputs |
 | Production runtime scanner on host | PASS: loaded dyld images, fixture image classes, instance/class method selector/encoding |
 | Production static analyzer | PASS: analyzes built Mach-O files, scalar Static Only provenance retained; collision bug found by test and corrected |
-| Production hook engine + LXFixture | PASS: all seven typed wrappers, original results/object identity, argument/return/time/thread/type logs, duplicate enable, disable/IMP equality, no new logs after disable, struct/variadic/unreviewed rejection |
+| Production hook engine + LXFixture | PASS: scalar argument/return replacement, BOOL rejection, fractional/out-of-range integer rejection, nonfinite float rejection, object rejection, exact LLONG_MAX return, original exception propagation under a return patch, clearing/disable, all seven typed wrappers, original results/object identity, argument/return/time/thread/type logs, duplicate enable, disable/IMP equality, no new logs after disable, struct/variadic/unreviewed rejection |
 | Exceptions / floating edge cases / concurrency | PASS: original exception propagated and logged with null return; NaN/Infinity safely serialized; concurrent calls and 1000-event/1 MiB bound; foreign IMP conflict left intact |
 | Protocol / authentication / host IPC | PASS: production framed JSON between separate processes, old version/malformed envelope/namespace rejection, HMAC purpose separation/wrong-key proof rejection; full mutual nonce handshake exercised by Simulator |
 | Python package-verifier tests | 4 PASS: actual ustar, GNU rejection, malformed ar, unsigned/wrong-CPU rejection |
-| Actual Agent ↔ Controller on iOS Simulator | PASS: paired session/PID/bundle, round-trip nonce, activate, runtime image/class/method queries, seven hook enables, fixture originals/logs, hook disable and unchanged behavior, static provenance, per-bundle persistence, export with no token, deactivate |
-| UIKit applications | Simulator installation/launch and screenshots PASS; Controller empty-state and fixture screens visually inspected. Interactive drill-down/gestures on physical device remain unverified |
+| Actual Agent ↔ Controller on iOS Simulator | PASS: scalar patches and process termination/relaunch restoring the saved patch without reissuing activate/hookEnable/patchApply, paired session/PID/bundle, round-trip nonce, activate, runtime image/class/method queries, seven hook enables, fixture originals/logs, hook disable and unchanged behavior, static provenance, per-bundle persistence, export with no token, deactivate |
+| Second application bundle | PASS: four SDK-reviewed UIKit profiles, BOOL/CGFloat argument patches, originals/logs/disable, fixture declaration rejection outside its bundle |
+| Controller offline inventory/static scan | PASS: installed fixture selected while Agent Offline; direct bundle scan produced Static Only image data |
+| UIKit applications | Simulator installation/launch and screenshots PASS; Controller installed-app inventory and fixture screens visually inspected. Interactive drill-down/gestures on physical device remain unverified |
 | Both Theos packages | PASS: compile, link, strip/sign, actual deb/ar/compression/tar/control/dependencies inspection; downloaded artifacts independently re-inspected on Windows |
 
 Production C/Objective-C compilation uses `-Wall -Wextra -Werror`. Initial weak-reference compile error was fixed. Static provenance key collision was discovered by expanded production-analyzer test and fixed. Initial package had lzma despite an incorrectly named setting; the correct `THEOS_PLATFORM_DEB_COMPRESSION_TYPE=gzip` produces verified gzip. Pinned Theos added obsolete `-multiply_defined suppress`; source was inspected and only that obsolete option removed, preserving duplicate-symbol errors. Final build logs have no ABI/signing/link/rpath/architecture compiler/linker warnings. Node deprecation notices from GitHub artifact action are not binary-build diagnostics.
 
-Simulator automation entry points (`--lx-test-token`, `fixtureRun`) are compiled only with `LX_FIXTURE_AUTOMATION` for the embedded Simulator fixture. They are absent from production deb source compilation. Simulator evidence is **not proof of a real iOS app sandbox, ElleKit injection, jailbreak signing acceptance or RootHide installation**.
+Simulator automation entry points (`--lx-test-token`, `fixtureRun`, `fixtureUIKitRun`) are compiled only with `LX_FIXTURE_AUTOMATION` for the embedded Simulator fixture. They are absent from production deb source compilation. Controller inventory/static evidence uses `LX_CONTROLLER_AUTOMATION`, also absent from production builds. Simulator evidence is **not proof of a real iOS app sandbox, ElleKit injection, jailbreak signing acceptance or RootHide installation**.
 
 ## Actual deb metadata
 
@@ -60,19 +62,19 @@ Artifacts from tested source:
 
 ```text
 jp.league.runtimeatlas_0.1.0_iphoneos-arm64.deb
-SHA256 b4a0a164f443c20d11157875a776761c76eaa343c4135e21dc654ad7581ea45c
+SHA256 753b4e4dcd6529ce4a987138fa4ef7ef56d8c7bafb8544752b8007af31259bb1
 
 jp.league.runtimeatlas_0.1.0_iphoneos-arm64e.deb
-SHA256 b2cd5bc8c8d164ee1eb429c0173fd1c548d6c58c355ff949e639cfe715291144
+SHA256 7c5eca22af3f9d080e9791dd34f32adf2741e58c8bfd72f0d29a1882d80253fa
 ```
 
-CI artifacts `runtimeatlas-rootless` (ID 11278668746) and `runtimeatlas-roothide` (ID 11278931239) contain deb, build log, package report and host test results; rootless artifact additionally contains Simulator screenshots, integration transcript and JSON export. Generated binaries are artifacts, not committed source. Simulator export contains simulator-local paths, so it was not copied into repository evidence. SHA256 values above refer to downloaded actual deb bytes.
+CI artifacts `runtimeatlas-rootless` (ID 11279279886) and `runtimeatlas-roothide` (ID 11279299420) contain deb, build log, package report and host test results; rootless artifact additionally contains Simulator screenshots, integration transcript and JSON export. Generated binaries are artifacts, not committed source. Simulator export contains simulator-local paths, so it was not copied into repository evidence. SHA256 values above refer to downloaded actual deb bytes.
 
 Independent local reinspection:
 
 ```sh
-python scripts/inspect_deb.py artifacts/verified-rootless/rootless/jp.league.runtimeatlas_0.1.0_iphoneos-arm64.deb --architecture iphoneos-arm64 --scheme rootless --output artifacts/verified-rootless/rootless/local-package-report.json
-python scripts/inspect_deb.py artifacts/verified-roothide/roothide/jp.league.runtimeatlas_0.1.0_iphoneos-arm64e.deb --architecture iphoneos-arm64e --scheme roothide --output artifacts/verified-roothide/roothide/local-package-report.json
+python scripts/inspect_deb.py artifacts/current-rootless/rootless/jp.league.runtimeatlas_0.1.0_iphoneos-arm64.deb --architecture iphoneos-arm64 --scheme rootless --output artifacts/current-rootless/rootless/local-package-report.json
+python scripts/inspect_deb.py artifacts/current-roothide/roothide/jp.league.runtimeatlas_0.1.0_iphoneos-arm64e.deb --architecture iphoneos-arm64e --scheme roothide --output artifacts/current-roothide/roothide/local-package-report.json
 # Both PASS; architecture and package identity confirmed.
 ```
 
@@ -81,15 +83,17 @@ python scripts/inspect_deb.py artifacts/verified-roothide/roothide/jp.league.run
 The complete physical-device acceptance conditions are **not yet satisfied**. No evidence is claimed for:
 
 - Sandbox IPC feasibility on a development-signed physical fixture, before production activation, on either jailbreak. Build path/procedure is supplied in ipc-feasibility.md; no provisioning or device was available.
-- iPhone 11/iOS 15.5 Dopamine or RootHide injection, on-device PAC/ABI execution, signing acceptance, home-screen registration, background timeout/grace scheduling and installation in actual old dpkg.
-- Arbitrary owned-app hook declarations: initial supported hooks are fixture-only. Other applications are browsable; adding hooks requires reviewed nonvariadic/ownership declarations plus compiled exact wrappers.
+- iPhone 11/iOS 15.5 Dopamine or RootHide injection, on-device PAC/ABI execution, signing acceptance, home-screen registration, background timeout/grace scheduling, installed-app inventory/launch, clipboard pairing, saved launch-patch persistence under jailbreak preference redirection, and installation in actual old dpkg.
+- Arbitrary owned-app hook declarations: initial supported hooks comprise seven fixture-only declarations and four exact system UIKit declarations. Other applications are browsable; adding hooks requires reviewed nonvariadic/ownership declarations plus compiled exact wrappers.
 - Full static Objective-C class/method relationship reconstruction or modern chained fixups. Partial string pools are explicitly Static Only, with limits/errors.
 - Atomic synchronization with independently racing third-party IMP writers; public runtime has no atomic compare-and-swap. Conflicts are detected and conditional restoration attempted, with retained trampolines for in-flight chains.
 
+Offline arbitrary-method patch creation from fully reconstructed class/method metadata is not implemented. Value patching is limited to supported numeric fields of reviewed declarations.
+
 Reproduce the physical tests in [device-validation.md](device-validation.md), record separate rootless and RootHide evidence, and only then claim device readiness.
 
-## Subsequent application-first / scalar patch change
+## Changes verified in this revision
 
-The earlier artifact hashes above are for the stated earlier source revision and do not certify subsequent changes. Revision `32991e1` separately passed both CI package builds and Simulator integration for four UIKit profiles, including a second application bundle where fixture declarations are rejected. The next change adds installed app enumeration, launch/pairing assistance, scalar argument/return patches, saved-patch reapplication and rejection/delegation tests. Its build/test results will be recorded after execution. Physical-device inventory, private API availability, clipboard behavior, injection and sandbox feasibility remain unverified.
+The application-first UI selects installed apps, opens them where LaunchServices permits, and shows process information under Connection details. Pairing keys are prefilled from a user-directed clipboard transfer; manual pairing is a fallback. Static bundle analysis and saved JSON export are available without Agent connection. Interactive value patches replace the supported scalar argument before delegating and may replace the successful return afterward. Explicit per-app launch authorization stores profiles in the host app's own namespaced preferences and restores them after process restart; default off, deactivate revokes it.
 
-Launch-policy addition: Simulator integration now terminates and relaunches the actual fixture process, verifies the saved argument/return patch without issuing activate/hookEnable/patchApply after relaunch, then disables launch policy and hook and verifies original results. Result pending the next CI run.
+Actual final logs contain no compiler `warning:` / `error:`. An intermediate test compile exposed Objective-C dictionary commas inside the assert macro; parentheses corrected it, and the final tests pass. Generated package reports were independently regenerated from downloaded deb bytes on Windows. Core sanitizer tests, production Objective-C tests and Python package tests passed on both CI jobs; four Python package tests also passed locally. Screenshot review confirms the installed-app rows and Refresh action are readable. Interactive UI navigation, launch gesture and clipboard prompts on physical hardware remain unverified.
