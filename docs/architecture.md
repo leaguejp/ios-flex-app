@@ -1,0 +1,46 @@
+# Architecture and decisions
+
+## Processes and responsibilities
+
+`ui/` is a searchable UIKit browser and JSON detail UI. `controller/` owns sessions, request correlation, persistent per-bundle state, bounded history and export. `shared/` owns versioned framed JSON transport and encoding interpretation. `agent/` owns target-side pairing/lifecycle and serialized command dispatch. `runtime/` uses official dyld/Objective-C C APIs. `hook/` owns typed trampolines/original IMPs and bounded call logs. `static/` adapts independent bounded C Mach-O parser in `core/`.
+
+Normal ElleKit/UIKit injection loads Agent. Constructor excludes non-app processes, Apple bundles and Controller. No scanning or hook engine allocation occurs until `activate`. A small gesture is installed on foreground notification for local opt-in pairing; TestTarget invokes the same entry point explicitly. Controller must authenticate with the user-transferred session token before it can issue commands. Token is never persisted or exported. PID/bundle identity is claimed by the token-bearing local peer, not kernel-attested; it is diagnostic, not a security boundary against a hostile jailbroken/root process.
+
+Agent's private serial queue handles requests and scanning; main queue handles only pairing UI. dyld callback increments an atomic generation. Scanner rebuilds image cache/class cache after a new-image callback; class lists are paginated at 200. Method data is requested on drill-down. Classes created dynamically without dyld changes may need a future explicit cache invalidation API. Image unloading is not supported by this generation policy.
+
+## IPC lifecycle
+
+Controller binds IPv4 loopback port 49371 (unique application protocol namespace `jp.league.runtimeatlas`). Agent connects only after local token entry, then sends authenticated hello. Every JSON message includes version, PID, bundle, command, commandID, responseID, structured error and payload. Frame size is bounded to 4 MiB; old/malformed messages close the connection. Pending commands time out after 30 seconds, unpaired sockets after 10; no more than 16 connections. Length-prefix transport handles partial reads/writes. Heartbeats every 3 seconds maintain a 15-second inactivity bound. Agent disables all hooks on disconnect. No fixed jailbreak filesystem path, XPC/Mach entitlement or daemon service is used.
+
+Protocol commands: `hello`, `helloAck`, `heartbeat`, `ping`, `activate`, `deactivate`, `images`, `classes`, `methods`, `hookEnable`, `hookDisable`, `state`, `logs`, `static`. Agent rejects malformed command arguments and duplicate command IDs within a bounded 256-command window. UI rejects old protocol and structured errors. Authentication is not general network protection: token authorizes a local session and must be kept private; listener never binds an external interface.
+
+**Feasibility gate:** host transport tests do not establish real iOS sandbox behavior. Production incorporation is provisional until docs/device-validation.md confirms sandboxed fixture communication on each jailbreak. No claim of completed device gate is made. Controller finite background execution is sufficient only for short interactive switching; an always-running broker is intentionally deferred because entitlement/path feasibility must be demonstrated first.
+
+## Hook choice and lifetime
+
+Compared methods: ElleKit/Substrate hook registration can preserve original IMP but does not solve argument ABI capture; forwarding/NSInvocation needs interception of forwarding state and has forwarding/aggregate caveats; generic libffi needs audited ABI/platform integration. Selected `imp_implementationWithBlock` with one exact compiled wrapper per reviewed declaration. Runtime encoding is checked against the declaration, never used to generate arbitrary C casts. Fixture-only bundle policy avoids falsely claiming nonvariadic support for arbitrary runtime signatures. Object echo wrapper is compiled MRC to preserve its reviewed +0 convention without ARC method-family inference.
+
+Instance methods operate on the defining Class, class methods on its metaclass. Inherited Method entries are rejected to avoid changing superclass behavior. A recursive lock serializes engine changes and log/state access. Thread-local depth suppresses nested logger recursion while still delegating all calls. Original exceptions propagate via `@finally`, logging exception status. All supported calls invoke the immutable saved IMP with exact receiver/selector/arguments. Duration measures original call plus minimal timing overhead.
+
+Disable compares current IMP to installed trampoline. If foreign, it disables logging and leaves it untouched. Runtime setImplementation return value detects a concurrent change and attempts conditional restoration. No public atomic CAS exists: an independently racing external writer cannot be completely synchronized by our lock. Do not claim atomic coordination with unrelated tweaks. Retired records/trampolines are never freed while calls/chains could reference them; 256-generation cap bounds retained resources. Engine lives for process lifetime.
+
+## Static/runtime provenance and persistence
+
+Agent analyzes its own bundle to avoid Controller requiring sandbox-bypass filesystem access. Parser validates file-relative bounds, recursive type depth, fat slices, command sizes and strings. Encrypted/malformed files return structured errors; unknown commands remain numeric metadata. String pools are labeled partial `Static Only`; no class/method relation is invented. Runtime records exclusively carry `Runtime Loaded`. UI keeps the catalogs separate, so identical names do not erase provenance. Future merged views must union records by path with separate sources and may never promote static entries based on names alone.
+
+Per-bundle JSON stores identity, desired hook requests, observed hook state, last logs, up to eight analysis/history records and timestamps. Export schema includes provenance and partial/error fields. Settings do not auto-restore hooks. Each file has a 16 MiB serialization cap; malformed saved JSON is ignored. Controller uses Foundation container/documents/temp URLs, with no jailbreak paths. Export tokens/credentials are never included.
+
+## Rootless and RootHide
+
+Scheme-specific pinned Theos checkouts supply install prefixes, link/rpath handling and package architectures. Source does not open bootstrap paths: its data is in the app's Foundation locations, static inputs in target bundle, IPC in loopback. Therefore no artificial ROOT_PATH/jbroot conversion is necessary. Future bootstrap-resource paths must use Theos `ROOT_PATH(_NS)` for ordinary rootless and RootHide `jbroot()` API, never a cached random prefix. Mach-O is arm64 because only ordinary application processes are injected; package architecture is not CPU architecture.
+
+## References
+
+- [Theos rootless](https://theos.dev/docs/rootless): package scheme, link paths, libroot, non-system arm64 support.
+- [RootHide path API](https://github.com/roothide/Developer/blob/main/interface.md): jbroot/rootfs API; random roots.
+- [Dopamine](https://github.com/opa334/Dopamine), [ElleKit](https://github.com/tealbathingsuit/ellekit): normal injection ecosystem.
+- [Apple Objective-C runtime source](https://github.com/apple-oss-distributions/objc4): enumeration and IMP APIs.
+- [Apple imp_implementationWithBlock](https://developer.apple.com/documentation/objectivec/imp_implementationwithblock(_:)): block receives receiver and explicit args, without selector.
+- [Requested reference repository](https://dxcool223-repo.github.io/repo/): consulted as a product reference only. No binaries/source extracted, vendored or decompiled; clean independent implementation.
+
+No vendored Mach-O/FLEX engine or third-party library. Theos build infrastructure is external, revision-pinned, with upstream licenses intact.

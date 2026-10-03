@@ -1,0 +1,9 @@
+Package: jp.league.runtimeatlas
+Name: Runtime Atlas
+Version: 0.1.0
+Architecture: iphoneos-arm64
+Description: Independent runtime inspector and reviewed Objective-C hook test workbench
+Maintainer: leaguejp
+Author: leaguejp
+Section: Development
+Depends: firmware (>= 15.0), ellekit

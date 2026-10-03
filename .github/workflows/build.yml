@@ -1,0 +1,28 @@
+name: Build and validate
+on: [push, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        scheme: [rootless, roothide]
+    env:
+      THEOS: ${{ github.workspace }}/.tools/theos-${{ matrix.scheme }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install signing utility
+        run: brew install ldid
+      - name: Bootstrap pinned Theos
+        run: bash scripts/bootstrap.sh ${{ matrix.scheme }}
+      - name: Core and production Objective-C tests
+        run: bash scripts/test-macos.sh
+      - name: Build and inspect package
+        run: bash scripts/build.sh ${{ matrix.scheme }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: runtimeatlas-${{ matrix.scheme }}
+          path: artifacts/
