@@ -43,8 +43,8 @@
  NSError *error=nil;LXChannel *channel=[LXChannel connectLoopback:&error];_connecting=NO;
  if(!channel) { _token=nil;return; }_channel=channel;
  __weak LXAgent *weak=self;__weak LXChannel *weakChannel=channel;
- channel.received=^(NSDictionary *m) { dispatch_async(weak->_queue,^{ [weak handle:m channel:weakChannel]; }); };
- channel.disconnected=^{ dispatch_async(weak->_queue,^{ [weak disconnect:weakChannel]; }); };
+ channel.received=^(NSDictionary *m) { LXAgent *agent=weak;if(agent) dispatch_async(agent->_queue,^{ [agent handle:m channel:weakChannel]; }); };
+ channel.disconnected=^{ LXAgent *agent=weak;if(agent) dispatch_async(agent->_queue,^{ [agent disconnect:weakChannel]; }); };
  [channel start];NSMutableDictionary *hello=[[self identity] mutableCopy];hello[@"token"]=_token;[channel send:LXMessage(@"hello",hello)];
  _heartbeat=dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER,0,0,_queue);
  dispatch_source_set_timer(_heartbeat,dispatch_time(DISPATCH_TIME_NOW,3*NSEC_PER_SEC),3*NSEC_PER_SEC,NSEC_PER_SEC/4);

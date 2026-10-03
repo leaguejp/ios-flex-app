@@ -10,7 +10,7 @@
  self.window=[[UIWindow alloc] initWithFrame:UIScreen.mainScreen.bounds];self.window.rootViewController=[[UINavigationController alloc] initWithRootViewController:_root];[self.window makeKeyAndVisible];
  _root.navigationItem.rightBarButtonItem=[[UIBarButtonItem alloc] initWithTitle:@"Pair" style:UIBarButtonItemStylePlain target:self action:@selector(pair)];
  __weak LXApp *weak=self;_controller.changed=^{ [weak refresh]; };_root.selected=^(NSDictionary *row) { [weak target:row[@"session"]]; };
- NSError *error=nil;if(![_controller start:&error]) dispatch_async(dispatch_get_main_queue(),^{ LXAlert(weak->_root,[NSString stringWithFormat:@"IPC listener failed: %@",error.localizedDescription]); });[self refresh];return YES;
+ NSError *error=nil;if(![_controller start:&error]) dispatch_async(dispatch_get_main_queue(),^{ LXApp *strong=weak;if(strong) LXAlert(strong->_root,[NSString stringWithFormat:@"IPC listener failed: %@",error.localizedDescription]); });[self refresh];return YES;
 }
 - (void)applicationDidEnterBackground:(UIApplication *)application {
  if(_background!=UIBackgroundTaskInvalid) [application endBackgroundTask:_background];
@@ -62,7 +62,7 @@
  for(NSDictionary *method in methods) [rows addObject:@{@"title":[NSString stringWithFormat:@"%@ %@",[method[@"classMethod"] boolValue]?@"+":@"-",method[@"selector"]],@"subtitle":[NSString stringWithFormat:@"%@ · %@",method[@"encoding"],[method[@"supported"] boolValue]?@"Hook supported":method[@"unsupportedReason"]],@"method":method}];view.rows=rows;__weak LXApp *weak=self;__weak LXBrowser *weakView=view;
  view.selected=^(NSDictionary *row) {
   NSDictionary *m=row[@"method"];LXBrowser *detail=[LXBrowser new];detail.title=m[@"selector"];
-  detail.rows=@[@{@"title":@"Selector / type encoding / provenance",@"subtitle":m[@"encoding"],@"action":@"info"},@{@"title":@"Enable hook",@"subtitle":[m[@"supported"] boolValue]?@"Reviewed ABI":m[@"unsupportedReason"],@"action":@"enable"},@{@"title":@"Disable hook",@"subtitle":@"Restores original if no conflict",@"action":@"disable"}];
+  detail.rows=@[@{@"title":@"Selector / type encoding / provenance",@"subtitle":m[@"encoding"],@"action":@"info"},@{@"title":@"Enable hook",@"subtitle":[m[@"supported"] boolValue]?@"Reviewed ABI":m[@"unsupportedReason"],@"action":@"enable",@"enabled":m[@"supported"]},@{@"title":@"Disable hook",@"subtitle":@"Restores original if no conflict",@"action":@"disable",@"enabled":m[@"supported"]}];
   __weak LXBrowser *weakDetail=detail;detail.selected=^(NSDictionary *item) {
    NSString *action=item[@"action"];if([action isEqual:@"info"]) { LXShowJSON(weakDetail,@"Method metadata",m);return; }
    if(![m[@"supported"] boolValue]) { LXAlert(weakDetail,m[@"unsupportedReason"]);return; }

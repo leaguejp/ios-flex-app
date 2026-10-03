@@ -23,7 +23,7 @@
    if(![m[@"command"] isEqual:@"hello"] || ![token isKindOfClass:NSString.class] || ![token isEqual:weak.token] || ![p[@"executable"] isKindOfClass:NSString.class] || ![p[@"bundlePath"] isKindOfClass:NSString.class] || ![p[@"bundle"] isEqual:m[@"bundle"]] || ![p[@"pid"] isEqual:m[@"pid"]]) { [s.channel close];return; }
    // Loopback token authorizes a session; claimed PID/bundle are diagnostic, not OS-attested identities.
    NSMutableDictionary *identity=[p mutableCopy];[identity removeObjectForKey:@"token"];s.identity=identity;
-   [weak->_sessions addObject:s];handshake=nil;
+   LXController *controller=weak;if(!controller) { [s.channel close];return; }[controller->_sessions addObject:s];handshake=nil;
    [s.channel send:LXMessage(@"helloAck",@{})];if(weak.changed) weak.changed();return;
   }
   if(![m[@"bundle"] isEqual:s.identity[@"bundle"]] || ![m[@"pid"] isEqual:s.identity[@"pid"]]) { [s.channel close];return; }

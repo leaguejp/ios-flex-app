@@ -8,4 +8,5 @@
 <key>MinimumOSVersion</key><string>15.0</string><key>LSRequiresIPhoneOS</key><true/>
 <key>UILaunchScreen</key><dict/><key>UIDeviceFamily</key><array><integer>1</integer></array>
 <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string></array>
+<key>CFBundleIconFiles</key><array><string>Icon.png</string><string>Icon@2x.png</string><string>Icon@3x.png</string></array>
 </dict></plist>
