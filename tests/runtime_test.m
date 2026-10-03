@@ -17,6 +17,11 @@ int main(void) { @autoreleasepool {
  NSDictionary *classes=[scanner classesInImage:@(image) offset:0];assert([classes[@"total"] unsignedIntegerValue]>0);
  NSDictionary *staticResult=[[LXStaticAnalyzer new] analyzeBundle:@(image).stringByDeletingLastPathComponent];assert([staticResult[@"provenance"] isEqual:@"Static Only"]);assert([staticResult[@"images"] count]>0);
  assert([[[LXStaticAnalyzer new] analyzeBundle:@"/nonexistent-runtimeatlas-test-bundle"][@"errors"] count]>0);
+ NSURL *temporary=[NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:NSUUID.UUID.UUIDString] isDirectory:YES];assert([NSFileManager.defaultManager createDirectoryAtURL:temporary withIntermediateDirectories:YES attributes:nil error:nil]);
+ uint32_t invalidMetadata[]={0xfeedfacf,0x100000c,0,2,1,32,0,0,0xc,32,24,0,0,0,0xff,0};NSURL *binary=[temporary URLByAppendingPathComponent:@"InvalidUTF8"];
+ assert([[NSData dataWithBytes:invalidMetadata length:sizeof(invalidMetadata)] writeToURL:binary atomically:YES]);
+ NSDictionary *invalidStatic=[[LXStaticAnalyzer new] analyzeBundle:temporary.path];assert([invalidStatic[@"errors"][0][@"code"] isEqual:@"invalid_utf8"]);assert([invalidStatic[@"images"] count]==1);
+ [NSFileManager.defaultManager removeItemAtURL:binary error:nil];[NSFileManager.defaultManager removeItemAtURL:temporary error:nil];
  assert([engine enableClass:@"LXFixture" selector:@"point:" classMethod:NO][@"error"]);
  assert([engine enableClass:@"LXFixture" selector:@"variadic:" classMethod:NO][@"error"]);
  assert([engine enableClass:@"NSString" selector:@"length" classMethod:NO][@"error"]);

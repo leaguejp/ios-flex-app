@@ -5,6 +5,7 @@ static void LXStaticEmit(void *context,const char *key,const char *value) {
  NSMutableDictionary *record=(__bridge NSMutableDictionary *)context;size_t length=strlen(value);NSUInteger used=[record[@"metadataBytes"] unsignedIntegerValue];
  if(length>=16384 || used+length>128*1024) { record[@"metadataTruncated"]=@YES;return; }
  record[@"metadataBytes"]=@(used+length);NSString *k=@(key),*v=@(value);
+ if(!k || !v) { record[@"metadataError"]=@"invalid_utf8";return; }
  NSMutableArray *values=record[k];if(!values) { values=[NSMutableArray new];record[k]=values; }
  if(values.count<20000) [values addObject:v];
 }
@@ -31,6 +32,7 @@ static void LXStaticEmit(void *context,const char *key,const char *value) {
   if(!data || !lx_macho(data.bytes,data.length,LXStaticEmit,(__bridge void *)record,error,sizeof(error)))
    [errors addObject:@{@"path":url.path,@"code":data?@(error):@"io_error",@"detail":io.localizedDescription ?: @"Static metadata may be partial"}];
   else {
+   if(record[@"metadataError"]) [errors addObject:@{@"path":url.path,@"code":record[@"metadataError"],@"detail":@"A metadata string is not valid UTF-8; omitted from partial result"}];
    NSUInteger bytes=[NSJSONSerialization dataWithJSONObject:record options:0 error:nil].length;
    if(totalBytes+bytes>2*1024*1024) { [errors addObject:@{@"code":@"metadata_budget",@"detail":@"Static results capped at 2 MiB"}];break; }
    totalBytes+=bytes;[images addObject:record];
