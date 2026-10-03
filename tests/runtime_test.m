@@ -40,21 +40,21 @@ int main(void) { @autoreleasepool {
   Method method=c?class_getClassMethod(LXFixture.class,NSSelectorFromString(sel)):class_getInstanceMethod(LXFixture.class,NSSelectorFromString(sel));assert(method_getImplementation(method)==[original[sel] pointerValue]);
  }
  assert(![engine enableClass:@"LXFixture" selector:@"addOne:" classMethod:NO][@"error"]);
- assert(![engine configurePatch:@{@"argument":@9} key:@"-LXFixture/addOne:"][@"error"]);assert([f addOne:41]==10);
- assert(![engine configurePatch:@{@"argument":@9,@"return":@77} key:@"-LXFixture/addOne:"][@"error"]);assert([f addOne:41]==77);
- assert([engine configurePatch:@{@"return":@1.5} key:@"-LXFixture/addOne:"][@"error"]);
- assert([engine configurePatch:@{@"return":@"bad"} key:@"-LXFixture/addOne:"][@"error"]);
- assert([engine configurePatch:@{@"return":@1e30} key:@"-LXFixture/addOne:"][@"error"]);
- assert(![engine configurePatch:@{@"argument":@(LLONG_MIN),@"return":@77} key:@"-LXFixture/addOne:"][@"error"]);
+ assert((![engine configurePatch:@{@"argument":@9} key:@"-LXFixture/addOne:"][@"error"]));assert([f addOne:41]==10);
+ assert((![engine configurePatch:@{@"argument":@9,@"return":@77} key:@"-LXFixture/addOne:"][@"error"]));assert([f addOne:41]==77);
+ assert(([engine configurePatch:@{@"return":@1.5} key:@"-LXFixture/addOne:"][@"error"]));
+ assert(([engine configurePatch:@{@"return":@"bad"} key:@"-LXFixture/addOne:"][@"error"]));
+ assert(([engine configurePatch:@{@"return":@1e30} key:@"-LXFixture/addOne:"][@"error"]));
+ assert((![engine configurePatch:@{@"argument":@(LLONG_MIN),@"return":@77} key:@"-LXFixture/addOne:"][@"error"]));
  @try { [f addOne:41];assert(0); } @catch(NSException *exception) { assert([exception.name isEqual:@"LXFixtureException"]); }
- assert(![engine configurePatch:@{} key:@"-LXFixture/addOne:"][@"error"]);assert([f addOne:41]==42);
+ assert((![engine configurePatch:@{} key:@"-LXFixture/addOne:"][@"error"]));assert([f addOne:41]==42);
  assert(![engine disableKey:@"-LXFixture/addOne:"][@"error"]);assert([f addOne:41]==42);
  for(NSString *selector in @[@"invert:",@"scale:",@"doubleValue:",@"echo:",@"classValue"]) assert(![engine enableClass:@"LXFixture" selector:selector classMethod:[selector isEqual:@"classValue"]][@"error"]);
- assert(![engine configurePatch:@{@"argument":@1} key:@"-LXFixture/invert:"][@"error"]);assert(![f invert:NO]);assert([engine configurePatch:@{@"return":@2} key:@"-LXFixture/invert:"][@"error"]);
- assert(![engine configurePatch:@{@"argument":@4,@"return":@6.25} key:@"-LXFixture/scale:"][@"error"]);assert([f scale:2]==6.25f);assert([engine configurePatch:@{@"return":@(INFINITY)} key:@"-LXFixture/scale:"][@"error"]);
- assert(![engine configurePatch:@{@"argument":@3.5} key:@"-LXFixture/doubleValue:"][@"error"]);assert([f doubleValue:1]==7);
- assert([engine configurePatch:@{@"return":@0} key:@"-LXFixture/echo:"][@"error"]);assert([f echo:marker]==marker);
- assert(![engine configurePatch:@{@"return":@(LLONG_MAX)} key:@"+LXFixture/classValue"][@"error"]);assert([LXFixture classValue]==LLONG_MAX);
+ assert((![engine configurePatch:@{@"argument":@1} key:@"-LXFixture/invert:"][@"error"]));assert(![f invert:NO]);assert(([engine configurePatch:@{@"return":@2} key:@"-LXFixture/invert:"][@"error"]));
+ assert((![engine configurePatch:@{@"argument":@4,@"return":@6.25} key:@"-LXFixture/scale:"][@"error"]));assert([f scale:2]==6.25f);assert(([engine configurePatch:@{@"return":@(INFINITY)} key:@"-LXFixture/scale:"][@"error"]));
+ assert((![engine configurePatch:@{@"argument":@3.5} key:@"-LXFixture/doubleValue:"][@"error"]));assert([f doubleValue:1]==7);
+ assert(([engine configurePatch:@{@"return":@0} key:@"-LXFixture/echo:"][@"error"]));assert([f echo:marker]==marker);
+ assert((![engine configurePatch:@{@"return":@(LLONG_MAX)} key:@"+LXFixture/classValue"][@"error"]));assert([LXFixture classValue]==LLONG_MAX);
  [engine disableAll];assert([f invert:NO]);assert([f scale:2]==3);assert([f doubleValue:2.5]==5);assert([LXFixture classValue]==42);
  captured=[engine logs].count;
  assert([f addOne:41]==42);[f ping];assert(f.pings==2);assert([engine logs].count==captured);
