@@ -15,7 +15,7 @@ if [[ "$sdk" == iphonesimulator && "${LX_FIXTURE_AUTOMATION:-0}" == 1 ]]; then c
 xcrun --sdk "$sdk" clang "${common[@]}" -fno-objc-arc -c hook/LXHookEngine.m -o "$dest/hook.o"
 xcrun --sdk "$sdk" clang "${common[@]}" -std=c11 -c core/encoding.c -o "$dest/encoding.o"
 xcrun --sdk "$sdk" clang "${common[@]}" -std=c11 -c core/macho.c -o "$dest/macho.o"
-xcrun --sdk "$sdk" clang "${common[@]}" -fobjc-arc testtarget/App.m testtarget/LXFixture.m agent/LXAgent.m runtime/LXScanner.m static/LXStaticAnalyzer.m shared/LXTypes.m shared/LXChannel.m shared/LXProtocol.m "$dest/hook.o" "$dest/encoding.o" "$dest/macho.o" -framework UIKit -framework Foundation -o "$app/AtlasTestTarget"
+xcrun --sdk "$sdk" clang "${common[@]}" -fobjc-arc testtarget/App.m testtarget/LXFixture.m agent/LXAgent.m runtime/LXScanner.m static/LXStaticAnalyzer.m shared/LXTypes.m shared/LXChannel.m shared/LXProtocol.m shared/LXAuth.m "$dest/hook.o" "$dest/encoding.o" "$dest/macho.o" -framework UIKit -framework Foundation -o "$app/AtlasTestTarget"
 cp testtarget/Resources/* "$app/"
 if [[ "$sdk" == iphoneos ]]; then
  : "${FIXTURE_PROFILE:?Path to development provisioning profile (keep outside Git)}"

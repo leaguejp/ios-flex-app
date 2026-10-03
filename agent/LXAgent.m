@@ -2,6 +2,7 @@
 #import <UIKit/UIKit.h>
 #import "../shared/LXChannel.h"
 #import "../shared/LXProtocol.h"
+#import "../shared/LXAuth.h"
 #import "../runtime/LXScanner.h"
 #import "../static/LXStaticAnalyzer.h"
 #import "../hook/LXHookEngine.h"
@@ -11,7 +12,7 @@
 #endif
 @implementation LXAgent {
  LXChannel *_channel;LXScanner *_scanner;LXHookEngine *_hooks;LXStaticAnalyzer *_static;
- dispatch_queue_t _queue;dispatch_source_t _heartbeat;BOOL _active;BOOL _connecting;NSString *_token;
+ dispatch_queue_t _queue;dispatch_source_t _heartbeat;BOOL _active;BOOL _connecting;BOOL _authenticated;BOOL _serverVerified;NSString *_token;NSString *_nonce;
  NSMutableSet *_seenCommands;NSMutableArray *_commandOrder;
 }
 + (instancetype)shared { static LXAgent *agent;static dispatch_once_t once;dispatch_once(&once,^{ agent=[LXAgent new]; });return agent; }
@@ -51,18 +52,24 @@
  __weak LXAgent *weak=self;__weak LXChannel *weakChannel=channel;
  channel.received=^(NSDictionary *m) { LXAgent *agent=weak;if(agent) dispatch_async(agent->_queue,^{ [agent handle:m channel:weakChannel]; }); };
  channel.disconnected=^{ LXAgent *agent=weak;if(agent) dispatch_async(agent->_queue,^{ [agent disconnect:weakChannel]; }); };
- [channel start];NSMutableDictionary *hello=[[self identity] mutableCopy];hello[@"token"]=_token;[channel send:LXMessage(@"hello",hello)];
+ [channel start];NSMutableDictionary *hello=[[self identity] mutableCopy];_authenticated=NO;_serverVerified=NO;_nonce=NSUUID.UUID.UUIDString;hello[@"nonce"]=_nonce;hello[@"proof"]=LXProof(_token,@"hello",hello);[channel send:LXMessage(@"hello",hello)];
  _heartbeat=dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER,0,0,_queue);
  dispatch_source_set_timer(_heartbeat,dispatch_time(DISPATCH_TIME_NOW,3*NSEC_PER_SEC),3*NSEC_PER_SEC,NSEC_PER_SEC/4);
- dispatch_source_set_event_handler(_heartbeat,^{ [weakChannel send:LXMessage(@"heartbeat",[weak identity])]; });dispatch_resume(_heartbeat);
+ dispatch_source_set_event_handler(_heartbeat,^{ LXAgent *agent=weak;if(agent && agent->_authenticated) [weakChannel send:LXMessage(@"heartbeat",[agent identity])]; });dispatch_resume(_heartbeat);
 }
 - (void)disconnect:(LXChannel *)channel {
- if(channel!=_channel) return;_active=NO;[_hooks disableAll];[_channel close];_channel=nil;_token=nil;
+ if(channel!=_channel) return;_active=NO;_authenticated=NO;[_hooks disableAll];[_channel close];_channel=nil;_token=nil;_nonce=nil;
  if(_heartbeat) { dispatch_source_cancel(_heartbeat);_heartbeat=nil; }[_seenCommands removeAllObjects];[_commandOrder removeAllObjects];
 }
 - (void)handle:(NSDictionary *)m channel:(LXChannel *)channel {
  if(channel!=_channel || channel.closed) return;
- if([m[@"command"] isEqual:@"helloAck"]) return;
+ if([m[@"command"] isEqual:@"helloChallenge"]) {
+  NSDictionary *p=m[@"payload"];NSDictionary *body=@{@"agentNonce":_nonce ?: @"",@"serverNonce":[p[@"serverNonce"] isKindOfClass:NSString.class]?p[@"serverNonce"]:@""};
+  if(![p[@"agentNonce"] isEqual:_nonce] || [body[@"serverNonce"] length]!=36 || !LXProofMatches(LXProof(_token,@"server",body),p[@"proof"])) { [channel close];return; }
+  _serverVerified=YES;NSMutableDictionary *finish=[body mutableCopy];finish[@"proof"]=LXProof(_token,@"client",body);[channel send:LXMessage(@"helloFinish",finish)];return;
+ }
+ if([m[@"command"] isEqual:@"helloAck"]) { if(!_serverVerified) { [channel close];return; }_authenticated=YES;return; }
+ if(!_authenticated) { [channel close];return; }
  NSString *identifier=m[@"commandID"],*command=m[@"command"];NSDictionary *p=m[@"payload"];
  NSMutableDictionary *reply=[LXMessage(command,@{}) mutableCopy];reply[@"responseID"]=identifier;
  NSDictionary *out;

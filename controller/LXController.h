@@ -6,6 +6,8 @@
 @property(nonatomic,strong) NSDictionary *identity;
 @property(nonatomic,strong) NSMutableDictionary *pending;
 @property(nonatomic) BOOL active;
+@property(nonatomic) BOOL authenticated;
+@property(nonatomic,strong) NSDictionary *challenge;
 @end
 @interface LXController : NSObject
 @property(nonatomic,readonly) NSString *token;

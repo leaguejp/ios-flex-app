@@ -1,10 +1,11 @@
 #import "LXController.h"
 #import "../shared/LXProtocol.h"
+#import "../shared/LXAuth.h"
 @implementation LXSession
 - (instancetype)init { if((self=[super init])) _pending=[NSMutableDictionary new];return self; }
 @end
 @implementation LXController { LXListener *_listener;NSMutableArray *_sessions;NSUInteger _connections; }
-- (instancetype)init { if((self=[super init])) { _sessions=[NSMutableArray new];_store=[LXStore new];_token=[[NSUUID.UUID.UUIDString stringByReplacingOccurrencesOfString:@"-" withString:@""] lowercaseString]; }return self; }
+- (instancetype)init { if((self=[super init])) { _sessions=[NSMutableArray new];_store=[LXStore new];_token=LXNewToken(); }return self; }
 - (NSArray *)sessions { return [_sessions copy]; }
 - (BOOL)start:(NSError **)error {
  _listener=[LXListener new];__weak LXController *weak=self;
@@ -19,14 +20,19 @@
  channel.received=^(NSDictionary *m) { dispatch_async(dispatch_get_main_queue(),^{
   LXSession *s=weakSession;if(!s) return;
   if(!s.identity) {
-   NSDictionary *p=m[@"payload"];NSString *token=p[@"token"];
-   if(![m[@"command"] isEqual:@"hello"] || ![token isKindOfClass:NSString.class] || ![token isEqual:weak.token] || ![p[@"executable"] isKindOfClass:NSString.class] || ![p[@"bundlePath"] isKindOfClass:NSString.class] || ![p[@"bundle"] isEqual:m[@"bundle"]] || ![p[@"pid"] isEqual:m[@"pid"]]) { [s.channel close];return; }
+   NSDictionary *p=m[@"payload"];NSMutableDictionary *body=[p mutableCopy];[body removeObjectForKey:@"proof"];
+   if(![m[@"command"] isEqual:@"hello"] || ![p[@"nonce"] isKindOfClass:NSString.class] || [p[@"nonce"] length]!=36 || !LXProofMatches(LXProof(weak.token,@"hello",body),p[@"proof"]) || ![p[@"executable"] isKindOfClass:NSString.class] || ![p[@"bundlePath"] isKindOfClass:NSString.class] || ![p[@"bundle"] isEqual:m[@"bundle"]] || ![p[@"pid"] isEqual:m[@"pid"]]) { [s.channel close];return; }
    // Loopback token authorizes a session; claimed PID/bundle are diagnostic, not OS-attested identities.
-   NSMutableDictionary *identity=[p mutableCopy];[identity removeObjectForKey:@"token"];s.identity=identity;
-   LXController *controller=weak;if(!controller) { [s.channel close];return; }[controller->_sessions addObject:s];handshake=nil;
-   [s.channel send:LXMessage(@"helloAck",@{})];if(weak.changed) weak.changed();return;
+   NSMutableDictionary *identity=[p mutableCopy];[identity removeObjectForKey:@"proof"];[identity removeObjectForKey:@"nonce"];s.identity=identity;
+   s.challenge=@{@"agentNonce":p[@"nonce"],@"serverNonce":NSUUID.UUID.UUIDString};NSMutableDictionary *challenge=[s.challenge mutableCopy];challenge[@"proof"]=LXProof(weak.token,@"server",s.challenge);
+   [s.channel send:LXMessage(@"helloChallenge",challenge)];return;
   }
   if(![m[@"bundle"] isEqual:s.identity[@"bundle"]] || ![m[@"pid"] isEqual:s.identity[@"pid"]]) { [s.channel close];return; }
+  if(!s.authenticated) {
+   if(![m[@"command"] isEqual:@"helloFinish"] || !LXProofMatches(LXProof(weak.token,@"client",s.challenge),m[@"payload"][@"proof"])) { [s.channel close];return; }
+   s.authenticated=YES;s.challenge=nil;LXController *controller=weak;if(!controller) { [s.channel close];return; }[controller->_sessions addObject:s];handshake=nil;
+   [s.channel send:LXMessage(@"helloAck",@{})];if(controller.changed) controller.changed();return;
+  }
   if([m[@"command"] isEqual:@"heartbeat"]) { [s.channel send:LXMessage(@"helloAck",@{})];return; }
   NSString *response=m[@"responseID"];void (^callback)(NSDictionary *)=s.pending[response];if(!callback) return;
   [s.pending removeObjectForKey:response];callback(m);

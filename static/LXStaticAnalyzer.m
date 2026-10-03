@@ -21,8 +21,9 @@ static void LXStaticEmit(void *context,const char *key,const char *value) {
   if(!regular.boolValue || link.boolValue || size.unsignedLongLongValue<4) continue;
   NSFileHandle *file=[NSFileHandle fileHandleForReadingAtPath:url.path];NSData *prefix=[file readDataOfLength:4];[file closeFile];if(prefix.length<4) continue;
   const uint8_t *p=prefix.bytes;BOOL macho=(p[0]==0xcf && p[1]==0xfa && p[2]==0xed && p[3]==0xfe)||(p[0]==0xfe && p[1]==0xed && p[2]==0xfa && p[3]==0xcf)||(p[0]==0xca && p[1]==0xfe && p[2]==0xba && (p[3]==0xbe || p[3]==0xbf));if(!macho) continue;
-  if(size.unsignedLongLongValue>256ULL*1024*1024) { [errors addObject:@{@"path":url.path,@"code":@"file_limit"}];continue; }
-  NSError *io=nil;NSData *data=[NSData dataWithContentsOfURL:url options:NSDataReadingMappedIfSafe error:&io];
+  if(size.unsignedLongLongValue>128ULL*1024*1024) { [errors addObject:@{@"path":url.path,@"code":@"file_limit"}];continue; }
+  // Copy, not mmap: concurrent file truncation must not produce SIGBUS during parsing.
+  NSError *io=nil;NSData *data=[NSData dataWithContentsOfURL:url options:NSDataReadingUncached error:&io];
   NSMutableDictionary *record=[@{@"path":url.path,@"name":url.lastPathComponent,@"provenance":@"Static Only",@"partial":@YES} mutableCopy];char error[128]={0};
   if(!data || !lx_macho(data.bytes,data.length,LXStaticEmit,(__bridge void *)record,error,sizeof(error)))
    [errors addObject:@{@"path":url.path,@"code":data?@(error):@"io_error",@"detail":io.localizedDescription ?: @"Static metadata may be partial"}];
