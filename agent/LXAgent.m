@@ -32,7 +32,7 @@
 - (void)pairGesture:(UITapGestureRecognizer *)gesture { if(gesture.state==UIGestureRecognizerStateRecognized) [self pairFromController:[self presenter]]; }
 - (void)pairFromController:(UIViewController *)presenter {
  UIAlertController *alert=[UIAlertController alertControllerWithTitle:@"Runtime Atlas pairing" message:@"Paste the session token shown in Controller. This permits runtime scanning and reviewed hooks in this app until disconnected." preferredStyle:UIAlertControllerStyleAlert];
- [alert addTextFieldWithConfigurationHandler:^(UITextField *field) { field.placeholder=@"32 character session token";field.autocorrectionType=UITextAutocorrectionTypeNo;field.autocapitalizationType=UITextAutocapitalizationTypeNone; }];
+ [alert addTextFieldWithConfigurationHandler:^(UITextField *field) { field.placeholder=@"Pairing key";NSString *candidate=UIPasteboard.generalPasteboard.string;NSCharacterSet *hex=[NSCharacterSet characterSetWithCharactersInString:@"0123456789abcdef"];if(candidate.length==32 && [candidate rangeOfCharacterFromSet:hex.invertedSet].location==NSNotFound) field.text=candidate;field.autocorrectionType=UITextAutocorrectionTypeNo;field.autocapitalizationType=UITextAutocapitalizationTypeNone; }];
  [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
  [alert addAction:[UIAlertAction actionWithTitle:@"Pair" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
   (void)action;NSString *token=alert.textFields.firstObject.text;
@@ -90,6 +90,7 @@
    else if([command isEqual:@"hookEnable"] && [p[@"class"] isKindOfClass:NSString.class] && [p[@"selector"] isKindOfClass:NSString.class] && [p[@"classMethod"] isKindOfClass:NSNumber.class]) {
     out=[_hooks enableClass:p[@"class"] selector:p[@"selector"] classMethod:[p[@"classMethod"] boolValue]];
    }
+   else if([command isEqual:@"patchApply"] && [p[@"key"] isKindOfClass:NSString.class] && [p[@"patch"] isKindOfClass:NSDictionary.class]) out=[_hooks configurePatch:p[@"patch"] key:p[@"key"]];
    else if([command isEqual:@"hookDisable"] && [p[@"key"] isKindOfClass:NSString.class]) out=[_hooks disableKey:p[@"key"]];
    else if([command isEqual:@"state"]) out=@{@"hooks":[_hooks state],@"active":@(_active)};
    else if([command isEqual:@"logs"]) out=@{@"logs":[_hooks logs]};

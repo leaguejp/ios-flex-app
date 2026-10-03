@@ -9,7 +9,7 @@ include $(THEOS)/makefiles/common.mk
 _THEOS_TARGET_LDFLAGS := $(filter-out -multiply_defined suppress,$(_THEOS_TARGET_LDFLAGS))
 
 APPLICATION_NAME = RuntimeAtlas AtlasTestTarget
-RuntimeAtlas_FILES = controller/App.m controller/LXController.m controller/LXStore.m ui/LXBrowser.m shared/LXProtocol.m shared/LXChannel.m shared/LXAuth.m
+RuntimeAtlas_FILES = controller/App.m controller/LXApplications.m controller/LXController.m controller/LXStore.m ui/LXBrowser.m shared/LXProtocol.m shared/LXChannel.m shared/LXAuth.m
 RuntimeAtlas_FRAMEWORKS = UIKit Foundation
 RuntimeAtlas_CFLAGS = -fobjc-arc -Wall -Wextra -Werror
 RuntimeAtlas_RESOURCE_DIRS = controller/Resources

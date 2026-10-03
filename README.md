@@ -25,8 +25,8 @@ Install the matching artifact via Sileo/Zebra or `dpkg -i` in the appropriate ja
 
 ## Use
 
-1. Open Runtime Atlas; choose **Pair**, which copies a fresh 128-bit session token.
-2. Open the owned/authorized target. Tap three times with three fingers, paste the token and pair. TestTarget also has an explicit Pair button.
+1. Open Runtime Atlas and select an installed application. **Enable analysis / open app** copies a fresh internal pairing key and opens the target when LaunchServices permits it. Inventory failure falls back to connected Agents.
+2. Open the owned/authorized target. Tap three times with three fingers, confirm the prefilled pairing key and pair (paste manually if clipboard access is unavailable). TestTarget also has an explicit Pair button.
 3. Return promptly to Controller. Select the connected process (PID, executable, bundle, Agent status), then **Activate Agent**.
 4. Search **Runtime Loaded images → class → method**. Both instance/metaclass methods show selector, raw encoding, parsed types and unsupported reason. Search applies at each image/class/method level.
 5. In TestTarget select `LXFixture`, enable a reviewed hook, return to TestTarget and call methods, then inspect **Logs** in Controller. Disable hook and repeat to verify original behavior.
@@ -37,7 +37,7 @@ Controller's ordinary background task provides a short OS-controlled grace perio
 
 ## Hook signature support matrix
 
-Encoding alone cannot identify variadic methods, object ownership or all ABI contracts. Initial hook support is deliberately limited to reviewed declarations in `testtarget/LXFixture.h` in the fixture bundle. Other apps remain fully browsable; extending hook support requires reviewing their declarations, ownership and ABI, then updating the compiled manifest and typed wrappers. A class with a similar name in another bundle is rejected.
+Encoding alone cannot identify variadic methods, object ownership or all ABI contracts. Hook support uses reviewed declarations in `testtarget/LXFixture.h` restricted to the fixture bundle, plus four system UIKit declarations available in other paired apps. Exact classes and system image origin are checked; arbitrary overrides remain unsupported. Other apps remain fully browsable; extending hook support requires reviewing their declarations, ownership and ABI, then updating the compiled manifest and typed wrappers. A class with a similar name in another bundle is rejected.
 
 | Declaration | arm64 shape (offsets omitted) | Supported |
 |---|---|---|
@@ -59,3 +59,13 @@ Static parser supports 64-bit thin/fat files, load commands, CPU, UUID, dependen
 Third-party IMP conflicts are detected and not blindly overwritten; Objective-C runtime exposes no public atomic IMP compare-and-swap. Concurrent external mutation is a documented limit. Retired trampolines remain alive for in-flight/third-party chains, bounded to 256 generations per process. Hook history is per bundle; live state is only Agent's state, never assumed from persisted settings.
 
 See [architecture](docs/architecture.md), [IPC feasibility](docs/ipc-feasibility.md), [validation](docs/validation.md), and [device procedure](docs/device-validation.md).
+
+## App selection and value patches
+
+The Home Screen app now starts with an installed third-party application list (name/bundle ID/Agent state). LaunchServices is an optional private API invoked only after runtime method-signature checks, without private entitlements. Missing API, errors, denied inventory or denied launch retain the paired-Agent/manual-launch path. Device availability is not established by Simulator results. Connected process identity remains diagnostic detail rather than the selection model.
+
+Reviewed UIKit instance methods: `UIView -setHidden:(BOOL)`, `UIView -setAlpha:(CGFloat)` (arm64 double), `UIViewController -viewWillAppear:(BOOL)` and `-viewDidAppear:(BOOL)`. Their signature declarations are compiler-checked against the selected SDK. UIKit wrappers can be enabled in any paired eligible app; they affect the exact system method, not subclass overrides that bypass it.
+
+Method details offer **Create / apply scalar patch**. Supported numeric argument/return fields accept finite BOOL (0/1), signed 64-bit integers, float and double. Argument replacement occurs before calling the saved original; return replacement occurs only after the original returns normally. Exceptions propagate. Void/object fields cannot be replaced. Empty fields preserve values; both empty fields clear the value patch and retain logging. Disabling the hook removes the effect. Patches are saved per bundle and available under **Saved patches**, where explicit selection reapplies the reviewed hook and patch after reconnection. Automatic application on every app launch is not implemented: the foreground Controller session is still required, and disconnect disables hooks. Static class-to-method reconstruction and offline arbitrary-method patch creation remain incomplete.
+
+Pairing authentication remains internal HMAC rather than being removed. Clipboard transfer is a user-directed one-time pairing aid, not silent access to other apps. On iOS versions with clipboard access prompts, manual paste may be necessary. A persistent trusted broker / automatic lifecycle needs real-device IPC validation before adoption.

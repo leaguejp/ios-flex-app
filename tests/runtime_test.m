@@ -39,6 +39,17 @@ int main(void) { @autoreleasepool {
  for(NSString *sel in selectors) { BOOL c=[sel isEqual:@"classValue"];NSString *key=[NSString stringWithFormat:@"%@LXFixture/%@",c?@"+":@"-",sel];assert(![engine disableKey:key][@"error"]);
   Method method=c?class_getClassMethod(LXFixture.class,NSSelectorFromString(sel)):class_getInstanceMethod(LXFixture.class,NSSelectorFromString(sel));assert(method_getImplementation(method)==[original[sel] pointerValue]);
  }
+ assert(![engine enableClass:@"LXFixture" selector:@"addOne:" classMethod:NO][@"error"]);
+ assert(![engine configurePatch:@{@"argument":@9} key:@"-LXFixture/addOne:"][@"error"]);assert([f addOne:41]==10);
+ assert(![engine configurePatch:@{@"argument":@9,@"return":@77} key:@"-LXFixture/addOne:"][@"error"]);assert([f addOne:41]==77);
+ assert([engine configurePatch:@{@"return":@1.5} key:@"-LXFixture/addOne:"][@"error"]);
+ assert([engine configurePatch:@{@"return":@"bad"} key:@"-LXFixture/addOne:"][@"error"]);
+ assert([engine configurePatch:@{@"return":@1e30} key:@"-LXFixture/addOne:"][@"error"]);
+ assert(![engine configurePatch:@{@"argument":@(LLONG_MIN),@"return":@77} key:@"-LXFixture/addOne:"][@"error"]);
+ @try { [f addOne:41];assert(0); } @catch(NSException *exception) { assert([exception.name isEqual:@"LXFixtureException"]); }
+ assert(![engine configurePatch:@{} key:@"-LXFixture/addOne:"][@"error"]);assert([f addOne:41]==42);
+ assert(![engine disableKey:@"-LXFixture/addOne:"][@"error"]);assert([f addOne:41]==42);
+ captured=[engine logs].count;
  assert([f addOne:41]==42);[f ping];assert(f.pings==2);assert([engine logs].count==captured);
  assert(![engine enableClass:@"LXFixture" selector:@"addOne:" classMethod:NO][@"error"]);
  for(int i=0;i<1500;i++) assert([f addOne:i]==i+1);assert([engine logs].count<=1000);

@@ -17,6 +17,7 @@ static id LXScalar(NSNumber *value) {
 }
 @class LXRecord;
 @interface LXHookEngine ()
+- (NSDictionary *)patchForRecord:(LXRecord *)record;
 - (void)appendRecord:(LXRecord *)record args:(NSArray *)args result:(id)result start:(uint64_t)start wall:(NSTimeInterval)wall threw:(BOOL)threw;
 @end
 @interface LXRecord : NSObject
@@ -30,9 +31,10 @@ static id LXScalar(NSNumber *value) {
 @property(nonatomic,copy) NSString *className;
 @property(nonatomic,assign) BOOL enabled;
 @property(nonatomic,copy) NSString *conflict;
+@property(nonatomic,copy) NSDictionary *patch;
 @end
 @implementation LXRecord
-- (void)dealloc { [_key release];[_encoding release];[_className release];[_conflict release];[super dealloc]; }
+- (void)dealloc { [_key release];[_encoding release];[_className release];[_conflict release];[_patch release];[super dealloc]; }
 @end
 // Each cast below has an exact compiler-visible, reviewed C prototype. No generic ABI cast.
 static IMP LXCreate(LXRecord *r,NSString *selector) {
@@ -43,7 +45,7 @@ static IMP LXCreate(LXRecord *r,NSString *selector) {
  });
  if([selector isEqual:@"classValue"]) return imp_implementationWithBlock(^long long(id obj) {
   BOOL trace=(LXDepth++==0);uint64_t start=LXClock();NSTimeInterval wall=NSDate.date.timeIntervalSince1970;BOOL threw=YES;long long value=0;
-  @try { value=((long long(*)(id,SEL))r.original)(obj,r.selector);threw=NO;return value; }
+  @try { value=((long long(*)(id,SEL))r.original)(obj,r.selector);threw=NO;NSDictionary *patch=[r.engine patchForRecord:r];if(patch[@"return"]) value=[patch[@"return"] longLongValue];return value; }
   @finally { --LXDepth;if(trace) { @try { [r.engine appendRecord:r args:@[] result:@(value) start:start wall:wall threw:threw]; } @catch(NSException *e) { (void)e; } } }
  });
  if([selector isEqual:@"echo:"]) return imp_implementationWithBlock(^id(id obj,id arg) {
@@ -51,20 +53,20 @@ static IMP LXCreate(LXRecord *r,NSString *selector) {
   @try { value=((id(*)(id,SEL,id))r.original)(obj,r.selector,arg);threw=NO;return value; }
   @finally { --LXDepth;if(trace) { @try { [r.engine appendRecord:r args:@[LXObject(arg)] result:LXObject(value) start:start wall:wall threw:threw]; } @catch(NSException *e) { (void)e; } } }
  });
-#define LX_SCALAR(SELECTOR,TYPE) \
+#define LX_SCALAR(SELECTOR,TYPE,ACCESSOR) \
  if([selector isEqual:@SELECTOR]) return imp_implementationWithBlock(^TYPE(id obj,TYPE arg) { \
- BOOL trace=(LXDepth++==0);uint64_t start=LXClock();NSTimeInterval wall=NSDate.date.timeIntervalSince1970;BOOL threw=YES;TYPE value=0; \
- @try { value=((TYPE(*)(id,SEL,TYPE))r.original)(obj,r.selector,arg);threw=NO;return value; } \
+ BOOL trace=(LXDepth++==0);uint64_t start=LXClock();NSTimeInterval wall=NSDate.date.timeIntervalSince1970;BOOL threw=YES;TYPE value=0;NSDictionary *patch=[r.engine patchForRecord:r];if(patch[@"argument"]) arg=(TYPE)[patch[@"argument"] ACCESSOR]; \
+ @try { value=((TYPE(*)(id,SEL,TYPE))r.original)(obj,r.selector,arg);threw=NO;if(patch[@"return"]) value=(TYPE)[patch[@"return"] ACCESSOR];return value; } \
  @finally { --LXDepth;if(trace) { @try { [r.engine appendRecord:r args:@[LXScalar(@(arg))] result:LXScalar(@(value)) start:start wall:wall threw:threw]; } @catch(NSException *e) { (void)e; } } } \
  });
- LX_SCALAR("addOne:",long long)
- LX_SCALAR("invert:",BOOL)
- LX_SCALAR("scale:",float)
- LX_SCALAR("doubleValue:",double)
+ LX_SCALAR("addOne:",long long,longLongValue)
+ LX_SCALAR("invert:",BOOL,boolValue)
+ LX_SCALAR("scale:",float,floatValue)
+ LX_SCALAR("doubleValue:",double,doubleValue)
 #undef LX_SCALAR
 #define LX_VOID_SCALAR(SELECTOR,TYPE) \
  if([selector isEqual:@SELECTOR]) return imp_implementationWithBlock(^(id obj,TYPE arg) { \
- BOOL trace=(LXDepth++==0);uint64_t start=LXClock();NSTimeInterval wall=NSDate.date.timeIntervalSince1970;BOOL threw=YES; \
+ BOOL trace=(LXDepth++==0);uint64_t start=LXClock();NSTimeInterval wall=NSDate.date.timeIntervalSince1970;BOOL threw=YES;NSDictionary *patch=[r.engine patchForRecord:r];if(patch[@"argument"]) arg=(TYPE)[patch[@"argument"] doubleValue]; \
  @try { ((void(*)(id,SEL,TYPE))r.original)(obj,r.selector,arg);threw=NO; } \
  @finally { --LXDepth;if(trace) { @try { [r.engine appendRecord:r args:@[LXScalar(@(arg))] result:NSNull.null start:start wall:wall threw:threw]; } @catch(NSException *e) { (void)e; } } } \
  });
@@ -104,6 +106,29 @@ static IMP LXCreate(LXRecord *r,NSString *selector) {
   record.enabled=YES;return @{ @"key":key,@"enabled":@YES };
  } @finally { [_lock unlock]; }
 }
+- (NSDictionary *)patchForRecord:(LXRecord *)record {
+ [_lock lock];NSDictionary *copy=record.enabled?[[record.patch copy] autorelease]:nil;[_lock unlock];return copy ?: @{};
+}
+- (NSDictionary *)configurePatch:(NSDictionary *)patch key:(NSString *)key {
+ [_lock lock];@try {
+  LXRecord *r=_records[key];if(!r.enabled) return @{ @"error":LXError(@"hook_inactive",@"Enable the reviewed hook before applying a patch") };
+  if(![patch isKindOfClass:NSDictionary.class] || patch.count>2) return @{ @"error":LXError(@"invalid_patch",@"Expected argument / return scalar fields") };
+  NSArray *types=LXDescribeEncoding(r.encoding);
+  for(NSString *field in patch) {
+   NSUInteger index=[field isEqual:@"return"]?0:[field isEqual:@"argument"]?3:NSUIntegerMax;
+   if(index>=types.count) return @{ @"error":LXError(@"invalid_patch",@"Unknown field or absent argument") };
+   NSString *encoding=types[index][@"encoding"];id value=patch[field];
+   if(![value isKindOfClass:NSNumber.class] || !isfinite([value doubleValue])) return @{ @"error":LXError(@"invalid_patch",@"A finite JSON scalar number is required") };
+   BOOL valid=NO;
+   if([encoding isEqual:@"B"] || [encoding isEqual:@"c"]) valid=[value doubleValue]==0 || [value doubleValue]==1;
+   else if([encoding isEqual:@"q"]) { NSDecimalNumber *number=[NSDecimalNumber decimalNumberWithDecimal:[value decimalValue]];valid=[number compare:[NSDecimalNumber decimalNumberWithString:@"-9223372036854775808"]]!=NSOrderedAscending && [number compare:[NSDecimalNumber decimalNumberWithString:@"9223372036854775807"]]!=NSOrderedDescending && [number compare:[NSDecimalNumber decimalNumberWithString:[value stringValue]]]==NSOrderedSame && floor([value doubleValue])==[value doubleValue]; }
+   else if([encoding isEqual:@"f"]) valid=isfinite([value floatValue]);
+   else if([encoding isEqual:@"d"]) valid=YES;
+   if(!valid) return @{ @"error":LXError(@"unsupported_patch",@"Only BOOL, signed 64-bit integer, float and double fields within range can be patched") };
+  }
+  r.patch=patch;return @{ @"key":key,@"patch":patch,@"enabled":@YES };
+ } @finally { [_lock unlock]; }
+}
 - (NSDictionary *)disableKey:(NSString *)key {
  [_lock lock];@try {
   LXRecord *r=_records[key];if(!r) return @{ @"error":LXError(@"hook_missing",@"Unknown hook") };
@@ -118,7 +143,7 @@ static IMP LXCreate(LXRecord *r,NSString *selector) {
 }
 - (NSArray *)state {
  [_lock lock];NSMutableArray *out=[NSMutableArray array];
- for(LXRecord *r in _records.allValues) [out addObject:@{@"key":r.key,@"enabled":@(r.enabled),@"conflict":r.conflict ?: @"",@"encoding":r.encoding}];
+ for(LXRecord *r in _records.allValues) [out addObject:@{@"key":r.key,@"enabled":@(r.enabled),@"conflict":r.conflict ?: @"",@"encoding":r.encoding,@"patch":r.patch ?: @{}}];
  NSArray *copy=[[out copy] autorelease];[_lock unlock];return copy;
 }
 - (NSArray *)logs { [_lock lock];NSArray *copy=[[_events copy] autorelease];[_lock unlock];return copy; }
@@ -127,7 +152,7 @@ static IMP LXCreate(LXRecord *r,NSString *selector) {
  uint64_t elapsed=LXClock()-start;[_lock lock];@try {
  if(r.enabled) {
   uint64_t thread=0;pthread_threadid_np(NULL,&thread);
-  NSDictionary *event=@{@"hook":r.key,@"class":r.className,@"selector":NSStringFromSelector(r.selector),@"encoding":r.encoding,@"types":LXDescribeEncoding(r.encoding),@"time":@(wall),@"thread":@(thread),@"durationNs":@(elapsed),@"arguments":args,@"return":threw?NSNull.null:result ?: NSNull.null,@"exception":@(threw)};
+  NSDictionary *event=@{@"hook":r.key,@"class":r.className,@"selector":NSStringFromSelector(r.selector),@"encoding":r.encoding,@"types":LXDescribeEncoding(r.encoding),@"time":@(wall),@"thread":@(thread),@"durationNs":@(elapsed),@"arguments":args,@"return":threw?NSNull.null:result ?: NSNull.null,@"exception":@(threw),@"patch":r.patch ?: @{}};
   NSData *data=[NSJSONSerialization dataWithJSONObject:event options:0 error:nil];
   if(data) { [_events addObject:event];_bytes+=data.length;
    while(_events.count>1000 || _bytes>1024*1024) { _bytes-=[NSJSONSerialization dataWithJSONObject:_events[0] options:0 error:nil].length;[_events removeObjectAtIndex:0]; } }

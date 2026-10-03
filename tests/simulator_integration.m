@@ -64,6 +64,12 @@ int main(void) { @autoreleasepool {
  request(controller,session,@"state",@{});NSDictionary *saved=[controller.store stateForBundle:session.identity[@"bundle"]];assert(saved[@"desiredHooks"] && saved[@"hookState"] && [saved[@"logs"] count]==7);
  NSURL *export=[controller.store exportBundle:session.identity[@"bundle"] error:nil];assert(export);NSData *bytes=[NSData dataWithContentsOfURL:export];assert(bytes);assert(![[[NSString alloc] initWithData:bytes encoding:NSUTF8StringEncoding] containsString:controller.token]);
  [bytes writeToFile:@"artifacts/simulator/integration-export.json" atomically:YES];
+ NSDictionary *profile=@{@"class":@"LXFixture",@"selector":@"addOne:",@"classMethod":@NO};request(controller,session,@"hookEnable",profile);
+ request(controller,session,@"patchApply",@{@"key":@"-LXFixture/addOne:",@"patch":@{@"argument":@9}});assert([request(controller,session,@"fixtureRun",@{})[@"integer"] integerValue]==10);
+ request(controller,session,@"patchApply",@{@"key":@"-LXFixture/addOne:",@"patch":@{@"argument":@9,@"return":@77}});assert([request(controller,session,@"fixtureRun",@{})[@"integer"] integerValue]==77);
+ NSDictionary *bad=response(controller,session,@"patchApply",@{@"key":@"-LXFixture/addOne:",@"patch":@{@"return":@1.5}});assert([bad[@"error"][@"code"] isEqual:@"unsupported_patch"]);
+ saved=[controller.store stateForBundle:bundle];assert([saved[@"patches"][@"-LXFixture/addOne:"][@"return"] integerValue]==77);
+ request(controller,session,@"hookDisable",@{@"key":@"-LXFixture/addOne:"});checkCalls(request(controller,session,@"fixtureRun",@{}));
  checkUIKit(controller,session);
  request(controller,session,@"deactivate",@{});assert(!session.active);
  puts("Simulator integration PASS: actual Agent, Controller sessions, IPC, loaded images/classes/methods, 7 hooks/originals/logs/disable, static provenance, per-bundle persistence and export");

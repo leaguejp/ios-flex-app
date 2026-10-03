@@ -87,3 +87,7 @@ The complete physical-device acceptance conditions are **not yet satisfied**. No
 - Atomic synchronization with independently racing third-party IMP writers; public runtime has no atomic compare-and-swap. Conflicts are detected and conditional restoration attempted, with retained trampolines for in-flight chains.
 
 Reproduce the physical tests in [device-validation.md](device-validation.md), record separate rootless and RootHide evidence, and only then claim device readiness.
+
+## Subsequent application-first / scalar patch change
+
+The earlier artifact hashes above are for the stated earlier source revision and do not certify subsequent changes. Revision `32991e1` separately passed both CI package builds and Simulator integration for four UIKit profiles, including a second application bundle where fixture declarations are rejected. The next change adds installed app enumeration, launch/pairing assistance, scalar argument/return patches, saved-patch reapplication and rejection/delegation tests. Its build/test results will be recorded after execution. Physical-device inventory, private API availability, clipboard behavior, injection and sandbox feasibility remain unverified.

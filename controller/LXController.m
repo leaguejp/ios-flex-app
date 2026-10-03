@@ -63,8 +63,9 @@
    }
    if([command isEqual:@"hookEnable"] || [command isEqual:@"hookDisable"]) {
     NSMutableDictionary *desired=[state[@"desiredHooks"] mutableCopy] ?: [NSMutableDictionary new];
-    NSString *key=response[@"payload"][@"key"];if(key) desired[key]=@{ @"enabled":response[@"payload"][@"enabled"] ?: @NO,@"request":payload ?: @{} };state[@"desiredHooks"]=desired;
+    NSString *key=response[@"payload"][@"key"];if(key) desired[key]=@{ @"enabled":response[@"payload"][@"enabled"] ?: @NO,@"request":[command isEqual:@"hookEnable"]?(payload ?: @{}):(desired[key][@"request"] ?: @{}) };state[@"desiredHooks"]=desired;
    }
+   if([command isEqual:@"patchApply"]) { NSMutableDictionary *patches=[state[@"patches"] mutableCopy] ?: [NSMutableDictionary new];patches[payload[@"key"]]=payload[@"patch"];state[@"patches"]=patches; }
    state[@"autoRestoreHooks"]=@NO;if(![weak.store save:state bundle:bundle]) { NSMutableDictionary *warning=[response mutableCopy];warning[@"persistenceWarning"]=@"Per-bundle state could not be saved; verify writable application documents directory";response=warning; }
   }
   completion(response);

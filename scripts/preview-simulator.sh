@@ -8,7 +8,7 @@ LX_FIXTURE_AUTOMATION=1 bash scripts/build-fixture.sh iphonesimulator
 sdk=$(xcrun --sdk iphonesimulator --show-sdk-path)
 arch=$(uname -m)
 app=build/controller-simulator/RuntimeAtlas.app
-xcrun --sdk iphonesimulator clang -target "$arch-apple-ios15.0-simulator" -isysroot "$sdk" -fobjc-arc -fblocks -Wall -Wextra -Werror controller/App.m controller/LXController.m controller/LXStore.m ui/LXBrowser.m shared/LXProtocol.m shared/LXChannel.m shared/LXAuth.m -framework UIKit -framework Foundation -o "$app/RuntimeAtlas"
+xcrun --sdk iphonesimulator clang -target "$arch-apple-ios15.0-simulator" -isysroot "$sdk" -fobjc-arc -fblocks -Wall -Wextra -Werror controller/App.m controller/LXApplications.m controller/LXController.m controller/LXStore.m ui/LXBrowser.m shared/LXProtocol.m shared/LXChannel.m shared/LXAuth.m -framework UIKit -framework Foundation -o "$app/RuntimeAtlas"
 cp controller/Resources/* "$app/"
 codesign --force --sign - "$app"
 xcrun simctl install "$udid" "$app"
