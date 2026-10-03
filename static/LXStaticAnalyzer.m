@@ -11,6 +11,8 @@ static void LXStaticEmit(void *context,const char *key,const char *value) {
 @implementation LXStaticAnalyzer
 - (NSDictionary *)analyzeBundle:(NSString *)path {
  NSMutableArray *images=[NSMutableArray new],*errors=[NSMutableArray new];NSURL *root=[NSURL fileURLWithPath:path isDirectory:YES];
+ NSNumber *directory=nil;NSError *rootError=nil;
+ if(![root getResourceValue:&directory forKey:NSURLIsDirectoryKey error:&rootError] || !directory.boolValue) return @{@"images":@[],@"errors":@[@{@"code":@"io_error",@"path":path,@"detail":rootError.localizedDescription ?: @"Bundle directory unavailable"}],@"provenance":@"Static Only"};
  NSDirectoryEnumerator *enumerator=[NSFileManager.defaultManager enumeratorAtURL:root includingPropertiesForKeys:@[NSURLIsRegularFileKey,NSURLFileSizeKey,NSURLIsSymbolicLinkKey] options:NSDirectoryEnumerationSkipsHiddenFiles errorHandler:^BOOL(NSURL *url,NSError *e) {
   [errors addObject:@{@"path":url.path,@"code":@"io_error",@"detail":e.localizedDescription}];return YES;
  }];
@@ -19,11 +21,12 @@ static void LXStaticEmit(void *context,const char *key,const char *value) {
   if(++visited>10000 || images.count>=256) { [errors addObject:@{@"code":@"bundle_limit"}];break; }
   NSNumber *regular,*size,*link;[url getResourceValue:&regular forKey:NSURLIsRegularFileKey error:nil];[url getResourceValue:&size forKey:NSURLFileSizeKey error:nil];[url getResourceValue:&link forKey:NSURLIsSymbolicLinkKey error:nil];
   if(!regular.boolValue || link.boolValue || size.unsignedLongLongValue<4) continue;
-  NSFileHandle *file=[NSFileHandle fileHandleForReadingAtPath:url.path];NSData *prefix=[file readDataOfLength:4];[file closeFile];if(prefix.length<4) continue;
+  NSData *prefix=nil;@try { NSFileHandle *file=[NSFileHandle fileHandleForReadingAtPath:url.path];if(file) { prefix=[file readDataOfLength:4];[file closeFile]; } } @catch(NSException *exception) { [errors addObject:@{@"path":url.path,@"code":@"io_error",@"detail":exception.name}];continue; }if(prefix.length<4) continue;
   const uint8_t *p=prefix.bytes;BOOL macho=(p[0]==0xcf && p[1]==0xfa && p[2]==0xed && p[3]==0xfe)||(p[0]==0xfe && p[1]==0xed && p[2]==0xfa && p[3]==0xcf)||(p[0]==0xca && p[1]==0xfe && p[2]==0xba && (p[3]==0xbe || p[3]==0xbf));if(!macho) continue;
   if(size.unsignedLongLongValue>128ULL*1024*1024) { [errors addObject:@{@"path":url.path,@"code":@"file_limit"}];continue; }
   // Copy, not mmap: concurrent file truncation must not produce SIGBUS during parsing.
   NSError *io=nil;NSData *data=[NSData dataWithContentsOfURL:url options:NSDataReadingUncached error:&io];
+  if(data.length>128ULL*1024*1024) { [errors addObject:@{@"path":url.path,@"code":@"file_limit"}];continue; }
   NSMutableDictionary *record=[@{@"path":url.path,@"name":url.lastPathComponent,@"provenance":@"Static Only",@"partial":@YES} mutableCopy];char error[128]={0};
   if(!data || !lx_macho(data.bytes,data.length,LXStaticEmit,(__bridge void *)record,error,sizeof(error)))
    [errors addObject:@{@"path":url.path,@"code":data?@(error):@"io_error",@"detail":io.localizedDescription ?: @"Static metadata may be partial"}];

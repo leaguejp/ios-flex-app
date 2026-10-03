@@ -8,7 +8,8 @@ LX_FIXTURE_AUTOMATION=1 bash scripts/build-fixture.sh iphonesimulator
 sdk=$(xcrun --sdk iphonesimulator --show-sdk-path)
 arch=$(uname -m)
 app=build/controller-simulator/RuntimeAtlas.app
-xcrun --sdk iphonesimulator clang -target "$arch-apple-ios15.0-simulator" -isysroot "$sdk" -fobjc-arc -fblocks -Wall -Wextra -Werror controller/App.m controller/LXApplications.m controller/LXController.m controller/LXStore.m ui/LXBrowser.m shared/LXProtocol.m shared/LXChannel.m shared/LXAuth.m -framework UIKit -framework Foundation -o "$app/RuntimeAtlas"
+xcrun --sdk iphonesimulator clang -target "$arch-apple-ios15.0-simulator" -isysroot "$sdk" -std=c11 -Wall -Wextra -Werror -c core/macho.c -o build/controller-simulator/macho.o
+xcrun --sdk iphonesimulator clang -target "$arch-apple-ios15.0-simulator" -isysroot "$sdk" -fobjc-arc -fblocks -DLX_CONTROLLER_AUTOMATION=1 -Wall -Wextra -Werror controller/App.m controller/LXApplications.m controller/LXController.m controller/LXStore.m static/LXStaticAnalyzer.m build/controller-simulator/macho.o ui/LXBrowser.m shared/LXProtocol.m shared/LXChannel.m shared/LXAuth.m -framework UIKit -framework Foundation -o "$app/RuntimeAtlas"
 cp controller/Resources/* "$app/"
 codesign --force --sign - "$app"
 xcrun simctl install "$udid" "$app"
@@ -23,8 +24,18 @@ codesign --force --sign - build/fixture-iphonesimulator/AtlasSecondary.app
 xcrun simctl install "$udid" build/fixture-iphonesimulator/AtlasSecondary.app
 LX_SIMULATOR_UDID="$udid" LX_FIXTURE_BUNDLE=jp.league.runtimeatlas.fixture.secondary build/simulator-integration | tee artifacts/simulator/secondary-integration.txt
 xcrun simctl terminate "$udid" jp.league.runtimeatlas.fixture.secondary
-xcrun simctl launch "$udid" jp.league.runtimeatlas.controller
+xcrun simctl launch "$udid" jp.league.runtimeatlas.controller --lx-test-inventory
 sleep 3
+container=$(xcrun simctl get_app_container "$udid" jp.league.runtimeatlas.controller data)
+cp "$container/Documents/inventory-test.json" artifacts/simulator/inventory-test.json
+python3 - <<'PY'
+import json
+with open('artifacts/simulator/inventory-test.json') as stream: result=json.load(stream)
+assert any(app['bundle']=='jp.league.runtimeatlas.fixture' for app in result['applications']), result
+assert result['static']['images'], result
+assert all(image['provenance']=='Static Only' for image in result['static']['images'])
+print('Controller inventory / offline bundle analysis PASS: installed fixture selected without an Agent connection')
+PY
 xcrun simctl io "$udid" screenshot artifacts/simulator/controller.png
 xcrun simctl launch "$udid" jp.league.runtimeatlas.fixture
 sleep 3

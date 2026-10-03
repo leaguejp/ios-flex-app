@@ -16,6 +16,7 @@ int main(void) { @autoreleasepool {
  const char *image=class_getImageName(LXFixture.class);assert(image);
  NSDictionary *classes=[scanner classesInImage:@(image) offset:0];assert([classes[@"total"] unsignedIntegerValue]>0);
  NSDictionary *staticResult=[[LXStaticAnalyzer new] analyzeBundle:@(image).stringByDeletingLastPathComponent];assert([staticResult[@"provenance"] isEqual:@"Static Only"]);assert([staticResult[@"images"] count]>0);
+ assert([[[LXStaticAnalyzer new] analyzeBundle:@"/nonexistent-runtimeatlas-test-bundle"][@"errors"] count]>0);
  assert([engine enableClass:@"LXFixture" selector:@"point:" classMethod:NO][@"error"]);
  assert([engine enableClass:@"LXFixture" selector:@"variadic:" classMethod:NO][@"error"]);
  assert([engine enableClass:@"NSString" selector:@"length" classMethod:NO][@"error"]);

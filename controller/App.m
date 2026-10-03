@@ -1,6 +1,7 @@
 #import <UIKit/UIKit.h>
 #import "LXController.h"
 #import "LXApplications.h"
+#import "../static/LXStaticAnalyzer.h"
 #import "../ui/LXBrowser.h"
 @interface LXApp : UIResponder <UIApplicationDelegate>
 @property(nonatomic,strong) UIWindow *window;
@@ -20,7 +21,15 @@
 - (void)applicationWillEnterForeground:(UIApplication *)application { [self reloadApplications]; if(_background!=UIBackgroundTaskInvalid) { [application endBackgroundTask:_background];_background=UIBackgroundTaskInvalid; } }
 - (void)pair { UIPasteboard.generalPasteboard.string=_controller.token;LXAlert(_root,[NSString stringWithFormat:@"Session token copied:\n%@\n\nIn target app, tap three times with three fingers and paste token. Return here promptly to activate. Background execution is finite; suspension disconnects the Agent and disables interactive hooks. Authorized launch patches may remain active.",_controller.token]); }
 - (void)reloadApplications {
- dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY,0),^{ NSString *failure=nil;NSArray *apps=[LXApplications installed:&failure];dispatch_async(dispatch_get_main_queue(),^{ self->_installed=apps;self->_inventoryFailure=failure;[self refresh]; }); });
+ dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY,0),^{ NSString *failure=nil;NSArray *apps=[LXApplications installed:&failure];dispatch_async(dispatch_get_main_queue(),^{ self->_installed=apps;self->_inventoryFailure=failure;[self refresh];
+#if LX_CONTROLLER_AUTOMATION
+ if([NSProcessInfo.processInfo.arguments containsObject:@"--lx-test-inventory"]) {
+  dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY,0),^{ NSDictionary *analysis=@{};for(NSDictionary *app in apps) if([app[@"bundle"] isEqual:@"jp.league.runtimeatlas.fixture"]) { analysis=[[LXStaticAnalyzer new] analyzeBundle:app[@"bundlePath"]];break; }
+   NSURL *documents=[NSFileManager.defaultManager URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask].firstObject;NSData *data=[NSJSONSerialization dataWithJSONObject:@{@"applications":apps,@"failure":failure ?: @"",@"static":analysis} options:NSJSONWritingPrettyPrinted error:nil];[data writeToURL:[documents URLByAppendingPathComponent:@"inventory-test.json"] atomically:YES];
+  });
+ }
+#endif
+ }); });
 }
 - (void)refresh {
  NSMutableArray *rows=[NSMutableArray new];NSMutableSet *seen=[NSMutableSet new];
@@ -34,8 +43,14 @@
 }
 - (void)installedTarget:(NSDictionary *)application {
  NSString *bundle=application[@"bundle"];LXBrowser *menu=[LXBrowser new];menu.title=application[@"name"];
- menu.rows=@[@{@"title":@"Enable analysis / open app",@"subtitle":@"Pair Agent, then activate from this app",@"action":@"open"},@{@"title":@"Saved patches / settings",@"subtitle":@"Available while Agent is offline",@"action":@"saved"}];
+ menu.rows=@[@{@"title":@"Analyze installed bundle",@"subtitle":@"Static Only · no running process required",@"action":@"static"},@{@"title":@"Enable analysis / open app",@"subtitle":@"Pair Agent, then activate from this app",@"action":@"open"},@{@"title":@"Saved patches / settings",@"subtitle":@"Available while Agent is offline",@"action":@"saved"}];
  __weak LXBrowser *weakMenu=menu;menu.selected=^(NSDictionary *row) {
+  if([row[@"action"] isEqual:@"static"]) {
+   NSString *path=application[@"bundlePath"];if(!path.length) { LXAlert(weakMenu,@"LaunchServices did not provide a bundle path. Connect the Agent to analyze its own bundle.");return; }
+   dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY,0),^{ NSDictionary *result;@try { result=[[LXStaticAnalyzer new] analyzeBundle:path]; } @catch(NSException *exception) { result=@{@"images":@[],@"errors":@[@{@"code":@"static_exception",@"detail":exception.name}],@"provenance":@"Static Only"}; }
+    dispatch_async(dispatch_get_main_queue(),^{ NSMutableDictionary *state=[[self->_controller.store stateForBundle:bundle] mutableCopy];NSMutableArray *history=[state[@"history"] mutableCopy] ?: [NSMutableArray new];[history addObject:@{@"command":@"staticOffline",@"response":result,@"time":@(NSDate.date.timeIntervalSince1970)}];while(history.count>8) [history removeObjectAtIndex:0];state[@"history"]=history;BOOL saved=[self->_controller.store save:state bundle:bundle];[self images:result[@"images"] session:nil parent:weakMenu runtime:NO];if(!saved || [result[@"errors"] count]) LXShowJSON(weakMenu,@"Static analysis diagnostics",@{@"saved":@(saved),@"errors":result[@"errors"] ?: @[]}); });
+   });return;
+  }
   if([row[@"action"] isEqual:@"saved"]) { LXShowJSON(weakMenu,@"Saved patches",[self->_controller.store stateForBundle:bundle]);return; }
   UIPasteboard.generalPasteboard.string=self->_controller.token;
   UIAlertController *alert=[UIAlertController alertControllerWithTitle:@"Connect selected app" message:@"The pairing key is copied internally. Open the app, tap three times with three fingers, and confirm Pair. Return here to activate and create patches. If no gesture appears, verify tweak injection and restart the target app." preferredStyle:UIAlertControllerStyleAlert];
