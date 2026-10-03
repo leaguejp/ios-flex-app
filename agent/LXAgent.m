@@ -1,0 +1,87 @@
+#import "LXAgent.h"
+#import <UIKit/UIKit.h>
+#import "../shared/LXChannel.h"
+#import "../shared/LXProtocol.h"
+#import "../runtime/LXScanner.h"
+#import "../static/LXStaticAnalyzer.h"
+#import "../hook/LXHookEngine.h"
+#include <unistd.h>
+@implementation LXAgent {
+ LXChannel *_channel;LXScanner *_scanner;LXHookEngine *_hooks;LXStaticAnalyzer *_static;
+ dispatch_queue_t _queue;dispatch_source_t _heartbeat;BOOL _active;BOOL _connecting;NSString *_token;
+ NSMutableSet *_seenCommands;NSMutableArray *_commandOrder;
+}
++ (instancetype)shared { static LXAgent *agent;static dispatch_once_t once;dispatch_once(&once,^{ agent=[LXAgent new]; });return agent; }
+- (instancetype)init { if((self=[super init])) { _queue=dispatch_queue_create("jp.league.runtimeatlas.agent",DISPATCH_QUEUE_SERIAL);_seenCommands=[NSMutableSet new];_commandOrder=[NSMutableArray new]; }return self; }
+- (UIViewController *)presenter {
+ for(UIScene *scene in UIApplication.sharedApplication.connectedScenes) if([scene isKindOfClass:UIWindowScene.class] && scene.activationState==UISceneActivationStateForegroundActive)
+  for(UIWindow *window in ((UIWindowScene *)scene).windows) if(window.isKeyWindow) { UIViewController *vc=window.rootViewController;while(vc.presentedViewController) vc=vc.presentedViewController;return vc; }
+ return nil;
+}
+- (void)installPairingGesture {
+ dispatch_async(dispatch_get_main_queue(),^{
+  UIView *view=[self presenter].view;if(!view || objc_getAssociatedObject(view,@selector(installPairingGesture))) return;
+  UITapGestureRecognizer *gesture=[[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(pairGesture:)];gesture.numberOfTapsRequired=3;gesture.numberOfTouchesRequired=3;gesture.cancelsTouchesInView=NO;
+  [view addGestureRecognizer:gesture];objc_setAssociatedObject(view,@selector(installPairingGesture),gesture,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+ });
+}
+- (void)pairGesture:(UITapGestureRecognizer *)gesture { if(gesture.state==UIGestureRecognizerStateRecognized) [self pairFromController:[self presenter]]; }
+- (void)pairFromController:(UIViewController *)presenter {
+ UIAlertController *alert=[UIAlertController alertControllerWithTitle:@"Runtime Atlas pairing" message:@"Paste the session token shown in Controller. This permits runtime scanning and reviewed hooks in this app until disconnected." preferredStyle:UIAlertControllerStyleAlert];
+ [alert addTextFieldWithConfigurationHandler:^(UITextField *field) { field.placeholder=@"32 character session token";field.autocorrectionType=UITextAutocorrectionTypeNo;field.autocapitalizationType=UITextAutocapitalizationTypeNone; }];
+ [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+ [alert addAction:[UIAlertAction actionWithTitle:@"Pair" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+  (void)action;NSString *token=alert.textFields.firstObject.text;
+  NSCharacterSet *hex=[NSCharacterSet characterSetWithCharactersInString:@"0123456789abcdef"];
+  if(token.length!=32 || [token rangeOfCharacterFromSet:hex.invertedSet].location!=NSNotFound) return;
+  dispatch_async(self->_queue,^{ self->_token=token;[self connect]; });
+ }]];[presenter presentViewController:alert animated:YES completion:nil];
+}
+- (NSDictionary *)identity { return @{@"pid":@(getpid()),@"bundle":NSBundle.mainBundle.bundleIdentifier ?: @"unknown",@"executable":NSBundle.mainBundle.executablePath ?: @"",@"bundlePath":NSBundle.mainBundle.bundlePath,@"active":@(_active)}; }
+- (void)connect {
+ if(_connecting || (_channel && !_channel.closed)) return;_connecting=YES;
+ NSError *error=nil;LXChannel *channel=[LXChannel connectLoopback:&error];_connecting=NO;
+ if(!channel) { _token=nil;return; }_channel=channel;
+ __weak LXAgent *weak=self;__weak LXChannel *weakChannel=channel;
+ channel.received=^(NSDictionary *m) { dispatch_async(weak->_queue,^{ [weak handle:m channel:weakChannel]; }); };
+ channel.disconnected=^{ dispatch_async(weak->_queue,^{ [weak disconnect:weakChannel]; }); };
+ [channel start];NSMutableDictionary *hello=[[self identity] mutableCopy];hello[@"token"]=_token;[channel send:LXMessage(@"hello",hello)];
+ _heartbeat=dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER,0,0,_queue);
+ dispatch_source_set_timer(_heartbeat,dispatch_time(DISPATCH_TIME_NOW,3*NSEC_PER_SEC),3*NSEC_PER_SEC,NSEC_PER_SEC/4);
+ dispatch_source_set_event_handler(_heartbeat,^{ [weakChannel send:LXMessage(@"heartbeat",[weak identity])]; });dispatch_resume(_heartbeat);
+}
+- (void)disconnect:(LXChannel *)channel {
+ if(channel!=_channel) return;_active=NO;[_hooks disableAll];[_channel close];_channel=nil;_token=nil;
+ if(_heartbeat) { dispatch_source_cancel(_heartbeat);_heartbeat=nil; }[_seenCommands removeAllObjects];[_commandOrder removeAllObjects];
+}
+- (void)handle:(NSDictionary *)m channel:(LXChannel *)channel {
+ if(channel!=_channel || channel.closed) return;
+ if([m[@"command"] isEqual:@"helloAck"]) return;
+ NSString *identifier=m[@"commandID"],*command=m[@"command"];NSDictionary *p=m[@"payload"];
+ NSMutableDictionary *reply=[LXMessage(command,@{}) mutableCopy];reply[@"responseID"]=identifier;
+ NSDictionary *out;
+ if([_seenCommands containsObject:identifier]) out=@{@"error":LXError(@"duplicate_command",@"Command already handled")};
+ else {
+  [_seenCommands addObject:identifier];[_commandOrder addObject:identifier];if(_commandOrder.count>256) { [_seenCommands removeObject:_commandOrder[0]];[_commandOrder removeObjectAtIndex:0]; }
+  @try {
+   if([command isEqual:@"activate"]) { _active=YES;if(!_scanner) _scanner=[LXScanner new];if(!_hooks) _hooks=[LXHookEngine new];if(!_static) _static=[LXStaticAnalyzer new];out=[self identity]; }
+   else if([command isEqual:@"deactivate"]) { _active=NO;[_hooks disableAll];out=[self identity]; }
+   else if([command isEqual:@"ping"]) out=@{@"echo":p,@"sandboxProbe":@YES};
+   else if(!_active) out=@{@"error":LXError(@"inactive",@"Activate this Agent explicitly first")};
+   else if([command isEqual:@"images"]) out=[_scanner images];
+   else if([command isEqual:@"classes"] && [p[@"image"] isKindOfClass:NSString.class] && [p[@"offset"] isKindOfClass:NSNumber.class] && [p[@"offset"] longLongValue]>=0) out=[_scanner classesInImage:p[@"image"] offset:[p[@"offset"] unsignedIntegerValue]];
+   else if([command isEqual:@"methods"] && [p[@"class"] isKindOfClass:NSString.class]) out=[_scanner methodsInClass:p[@"class"]];
+   else if([command isEqual:@"hookEnable"] && [p[@"class"] isKindOfClass:NSString.class] && [p[@"selector"] isKindOfClass:NSString.class] && [p[@"classMethod"] isKindOfClass:NSNumber.class]) {
+    if(![NSBundle.mainBundle.bundleIdentifier isEqual:@"jp.league.runtimeatlas.fixture"]) out=@{@"error":LXError(@"unreviewed_bundle",@"Hook declarations reviewed for TestTarget only")};
+    else out=[_hooks enableClass:p[@"class"] selector:p[@"selector"] classMethod:[p[@"classMethod"] boolValue]];
+   }
+   else if([command isEqual:@"hookDisable"] && [p[@"key"] isKindOfClass:NSString.class]) out=[_hooks disableKey:p[@"key"]];
+   else if([command isEqual:@"state"]) out=@{@"hooks":[_hooks state],@"active":@(_active)};
+   else if([command isEqual:@"logs"]) out=@{@"logs":[_hooks logs]};
+   else if([command isEqual:@"static"]) out=[_static analyzeBundle:NSBundle.mainBundle.bundlePath];
+   else out=@{@"error":LXError(@"bad_command",@"Unknown command or invalid arguments")};
+  } @catch(NSException *exception) { out=@{@"error":LXError(@"agent_exception",exception.name)}; }
+ }
+ if(out[@"error"]) reply[@"error"]=out[@"error"];reply[@"payload"]=out ?: @{};[channel send:reply];
+}
+@end
