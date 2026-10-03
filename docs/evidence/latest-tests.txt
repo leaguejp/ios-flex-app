@@ -1,10 +1,13 @@
-Build source a9ba29e14ab7dfcea9facd2ca6e57161b0db9d70
-CI run 37146396814: both jobs SUCCESS
+Build source 39522c55c4669eab1715a734136e5cb4c13a4e71
+CI run 37158787269: both jobs SUCCESS
+core: encoding, classic/relative/chained static Objective-C relationships and malformed Mach-O tests passed
 runtime: scanner, 7 reviewed signatures, originals, arguments/return logs, restore, duplicate, unsupported, scalar patches/original exceptions, no-pool pthread logging, image unload invalidation and conflict tests passed
-Store/Controller: malformed saved JSON, bounded reads, malformed result collections/provenance and nonadvancing pagination rejected without exceptions
+IPC: production framed JSON round trip between separate macOS processes passed (NOT iOS sandbox proof)
+Store/Controller: offline scalar patch save/reload/export, unsupported bundle/signature/range rejection; malformed saved JSON, bounded reads, malformed result collections/provenance and nonadvancing pagination rejected without exceptions
 UIKit presenter PASS: App Delegate window lookup and pairing gesture; connected scenes=1 (not proof of a scene-free physical device)
-Simulator integration PASS: scalar patches, persisted launch restoration, actual Agent, Controller sessions, IPC, loaded images/classes/methods, 7 hooks/originals/logs/disable, static provenance, per-bundle persistence and export
+Simulator integration PASS: static-derived saved patch, stale encoding rejection, scalar patches, persisted launch restoration, actual Agent, Controller sessions, IPC, loaded images/classes/methods, 7 hooks/originals/logs/disable, static provenance, per-bundle persistence and export
 Simulator results are not physical iOS sandbox or jailbreak validation.
 UIKit presenter PASS: App Delegate window lookup and pairing gesture; connected scenes=1 (not proof of a scene-free physical device)
 Secondary bundle PASS: 4 SDK-reviewed UIKit hooks, scalar argument patches, originals/arguments/logs/disable; fixture declarations rejected outside fixture bundle
-Controller inventory / offline bundle analysis PASS: installed fixture selected without Agent connection.
+Controller inventory / offline class and method analysis PASS: fixture instance/class signatures and unsupported reasons without Agent connection.
+Downloaded rootless and RootHide debs independently reinspected on Windows: PASS. Physical jailbreak/sandbox validation: NOT RUN.

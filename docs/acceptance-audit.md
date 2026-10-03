@@ -1,6 +1,6 @@
 # Acceptance audit
 
-Audited 2026-10-04 JST against the original requirements and application-first/value-patch clarification. Tested implementation: `a9ba29e14ab7dfcea9facd2ca6e57161b0db9d70`, CI run [37146396814](https://github.com/leaguejp/ios-flex-app/actions/runs/37146396814). Documentation-only follow-up preserves this implementation.
+Audited 2026-10-04 JST against the original requirements and application-first/value-patch clarification. Tested implementation: `39522c55c4669eab1715a734136e5cb4c13a4e71`, CI run [37158787269](https://github.com/leaguejp/ios-flex-app/actions/runs/37158787269). Documentation-only follow-up preserves this implementation.
 
 | Requirement | Authoritative evidence | Status / limit |
 |---|---|---|
@@ -14,7 +14,7 @@ Audited 2026-10-04 JST against the original requirements and application-first/v
 | Enable/disable, original delegation, meta-class, duplicate prevention, conflicts, thread safety | Typed wrappers and locks; 7 fixture and 4 UIKit profiles; original exception, foreign IMP and concurrent-call tests | Tested within support matrix; no public atomic CAS for independently racing foreign writers |
 | Unsupported signatures disabled and parser broad identification | LXTypes/core parser, UI enabled flags, struct/variadic rejection tests, README matrix | Implemented; arbitrary unreviewed methods remain unsupported rather than forced through casts |
 | Bounded arguments/return/thread/time/duration logs without descriptions | Hook engine, finite scalar/object identity handling, ring cap, no-pool pthread test | Host/Simulator pass; object field identity bounded; object value replacement unsupported |
-| Static header/architecture/load commands/UUID/dependencies/metadata and errors | C parser sanitizer/fuzz tests, production adapter, offline Simulator bundle scan, invalid UTF-8 regression | Partial Objective-C string pools; class-method associations/chained fixups not reconstructed |
+| Static header/architecture/load commands/UUID/dependencies/metadata and errors | C parser sanitizer/fuzz tests, production adapter, offline Simulator bundle scan, invalid UTF-8 regression | Partial arm64 class/metaclass associations; classic/relative methods and PTR_64/PTR_64_OFFSET chains supported; categories/authenticated formats remain unsupported |
 | Runtime Loaded / Static Only provenance | Models, response validation, separate UI flows, exported results | Tested; generated class group explicitly has no Mach-O image |
 | Per-target settings/hook state/history/value patches and JSON export | Controller store and Agent own-domain namespaced preferences; export and process-relaunch tests | Simulator restoration/export pass; default launch policy off; target preference redirection on hardware unverified |
 | Rootless/RootHide filesystem and package architecture separation | Pinned bootstrap/build scripts, actual package reports | Separate builds/package layouts verified; no bootstrap path literal in app/agent access; actual RootHide runtime paths unverified |

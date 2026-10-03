@@ -1,6 +1,6 @@
 # Validation record
 
-Recorded 2026-10-04 JST. Build source revision: `a9ba29e14ab7dfcea9facd2ca6e57161b0db9d70`. [Final source build run 37146396814](https://github.com/leaguejp/ios-flex-app/actions/runs/37146396814): **both jobs SUCCESS**. Documentation/evidence-only follow-up does not change the tested source.
+Recorded 2026-10-04 JST. Build source revision: `39522c55c4669eab1715a734136e5cb4c13a4e71`. [Final source build run 37158787269](https://github.com/leaguejp/ios-flex-app/actions/runs/37158787269): **both jobs SUCCESS**. Documentation/evidence-only follow-up does not change the tested source.
 
 ## Environment and commands
 
@@ -85,7 +85,7 @@ The complete physical-device acceptance conditions are **not yet satisfied**. No
 - Sandbox IPC feasibility on a development-signed physical fixture, before production activation, on either jailbreak. Build path/procedure is supplied in ipc-feasibility.md; no provisioning or device was available.
 - iPhone 11/iOS 15.5 Dopamine or RootHide injection, on-device PAC/ABI execution, signing acceptance, home-screen registration, background timeout/grace scheduling, installed-app inventory/launch, clipboard pairing, saved launch-patch persistence under jailbreak preference redirection, and installation in actual old dpkg.
 - Arbitrary owned-app hook declarations: initial supported hooks comprise seven fixture-only declarations and four exact system UIKit declarations. Other applications are browsable; adding hooks requires reviewed nonvariadic/ownership declarations plus compiled exact wrappers.
-- Full static Objective-C class/method relationship reconstruction or modern chained fixups. Partial string pools are explicitly Static Only, with limits/errors.
+- Complete static Objective-C metadata reconstruction: categories, bound external references, arm64e authenticated chain formats, multiple-start pages and Swift-only metadata remain unsupported. Decoded classlist/metaclass methods and PTR_64/PTR_64_OFFSET chains are explicitly Static Only.
 - Atomic synchronization with independently racing third-party IMP writers; public runtime has no atomic compare-and-swap. Conflicts are detected and conditional restoration attempted, with retained trampolines for in-flight chains.
 
 Offline arbitrary-method patch creation from fully reconstructed class/method metadata is not implemented. Value patching is limited to supported numeric fields of reviewed declarations.
@@ -107,3 +107,22 @@ Logging-only autorelease pools surround temporary log allocations, not the origi
 UIKit presenter check PASS: actual fixture App Delegate window lookup and pairing gesture registration. The current Simulator creates one connected Scene even without a scene manifest; an initial test incorrectly assumed zero and was corrected. The legacy window helper is checked independently, but actual Scene-free iOS 15.5 interaction remains unverified.
 
 The hardware blocker was rechecked: Windows present-device inventory contains no iPhone/Apple Mobile device, and no SSH endpoint/configuration or development provisioning is provided. [Acceptance audit](acceptance-audit.md) distinguishes source/host/Simulator/package evidence from outstanding physical gates.
+
+## App-first offline patch implementation validation (2026-10-04)
+
+Both final matrix jobs succeeded for the source revision above. Executed `scripts/test-macos.sh`, each scheme's `scripts/build.sh`, and rootless `scripts/preview-simulator.sh`. ASan/UBSan tests PASS for classic class/metaclass pointers, small relative method lists, PTR_64_OFFSET chains, unsupported pointer formats, bound class references, malformed ranges, real thin arm64 fat selection and nested fat rejection. Host Store tests PASS for offline save/reload/export, scalar range rejection and unsupported bundle/method refusal.
+
+Actual embedded Agent/Controller Simulator integration PASS: a Static Only `LXFixture/addOne:` record is saved as a per-app patch, stale encoding is rejected before hook installation, then the saved definition applies and changes values while the original still runs. Existing disable/original/log/launch-restoration tests PASS. Installed-app inventory selects the fixture with no Agent connection and independently decodes its instance/class methods and unsupported reasons. Interactive UIKit navigation itself is compile-checked, but not automated through touch gestures.
+
+Final compiler/linker logs contain no `warning:` or `error:`. Four package-verifier tests also PASS locally on Windows. Downloaded final artifacts are independently checked with:
+
+```sh
+python scripts/inspect_deb.py <rootless.deb> --architecture iphoneos-arm64 --scheme rootless --output rootless-report.json
+python scripts/inspect_deb.py <roothide.deb> --architecture iphoneos-arm64e --scheme roothide --output roothide-report.json
+```
+
+Both packages are version 0.1.0, Installed-Size 444, actual gzip/ustar, three arm64 Mach-Os, expected scheme-specific Debian architectures and Apple system dependencies without libFLEX. Updated full reports and compact test transcripts are in `docs/evidence`. GitHub artifact IDs: rootless 11286956521; RootHide 11286986240. Physical iPhone sandbox feasibility, tweak injection, clipboard pairing and RootHide operation remain unverified. Arbitrary unreviewed application methods remain browse-only; this implementation adds offline authoring within the reviewed support matrix, not complete Flex 3 compatibility.
+
+Final rootless deb SHA256: `8ae77e06969f8a8217ae5250949c87bf39e773049cc4ca539033f94007be421d`.
+
+Final roothide deb SHA256: `2fa91fcb0948f1c7b637508ba75db6ee5bb952f85ccb001a016d1056b20e91b2`.
