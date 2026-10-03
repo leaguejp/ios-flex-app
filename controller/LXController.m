@@ -51,6 +51,10 @@
  session.pending[identifier]=^(NSDictionary *response) {
   LXSession *s=weakSession;if(!s) return;
   if(response[@"error"]==NSNull.null) {
+   NSString *reason=[response[@"command"] isEqual:command]?LXResultReason(command,response[@"payload"],payload):@"Response command differs from request";
+   if(reason) { NSMutableDictionary *invalid=[response mutableCopy];invalid[@"error"]=LXError(@"bad_response",reason);invalid[@"payload"]=@{};completion(invalid);return; }
+  }
+  if(response[@"error"]==NSNull.null) {
    if([command isEqual:@"activate"]) s.active=YES;if([command isEqual:@"deactivate"]) s.active=NO;
    NSString *bundle=s.identity[@"bundle"];NSMutableDictionary *state=[[weak.store stateForBundle:bundle] mutableCopy];
    state[@"identity"]=s.identity;state[@"updatedAt"]=@(NSDate.date.timeIntervalSince1970);

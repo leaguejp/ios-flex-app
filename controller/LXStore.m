@@ -1,5 +1,29 @@
 #import "LXStore.h"
+#import "../shared/LXProtocol.h"
 #import <CommonCrypto/CommonDigest.h>
+// Saved JSON is untrusted, including syntactically valid but incorrectly typed records.
+static NSDictionary *LXStoredState(id value) {
+ if(![value isKindOfClass:NSDictionary.class]) return @{};
+ NSMutableDictionary *state=[value mutableCopy];
+ NSDictionary *expected=@{@"history":NSArray.class,@"logs":NSArray.class,@"desiredHooks":NSDictionary.class,@"patches":NSDictionary.class,@"identity":NSDictionary.class,@"hookState":NSDictionary.class,@"updatedAt":NSNumber.class,@"applyOnLaunch":NSNumber.class,@"autoRestoreHooks":NSNumber.class};
+ for(NSString *key in expected) if(state[key] && ![state[key] isKindOfClass:expected[key]]) [state removeObjectForKey:key];
+ NSMutableArray *history=[NSMutableArray new];NSArray *old=state[@"history"] ?: @[];
+ for(NSUInteger i=old.count>8?old.count-8:0;i<old.count;i++) {
+  id item=old[i];if([item isKindOfClass:NSDictionary.class] && [item[@"command"] isKindOfClass:NSString.class] && [item[@"response"] isKindOfClass:NSDictionary.class] && [item[@"time"] isKindOfClass:NSNumber.class]) [history addObject:item];
+ }
+ if(state[@"history"]) state[@"history"]=history;
+ if(state[@"logs"] && LXResultReason(@"logs",@{@"logs":state[@"logs"]},@{})) [state removeObjectForKey:@"logs"];
+ for(NSString *field in @[@"desiredHooks",@"patches"]) {
+  if(!state[field]) continue;NSMutableDictionary *clean=[NSMutableDictionary new];
+  for(NSString *key in state[field]) {
+   id entry=state[field][key];if(![entry isKindOfClass:NSDictionary.class]) continue;
+   if([field isEqual:@"desiredHooks"] && (![entry[@"request"] isKindOfClass:NSDictionary.class] || ![entry[@"enabled"] isKindOfClass:NSNumber.class])) continue;
+   clean[key]=entry;
+  }
+  state[field]=clean;
+ }
+ return state;
+}
 @implementation LXStore
 - (NSURL *)root {
  NSURL *base=[NSFileManager.defaultManager URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask].firstObject;
@@ -11,11 +35,15 @@
  return [[self root] URLByAppendingPathComponent:[name stringByAppendingString:@".json"]];
 }
 - (NSDictionary *)stateForBundle:(NSString *)bundle {
- NSData *data=[NSData dataWithContentsOfURL:[self file:bundle]];if(!data || data.length>16*1024*1024) return @{};
- id state=[NSJSONSerialization JSONObjectWithData:data options:0 error:nil];return [state isKindOfClass:NSDictionary.class]?state:@{};
+ NSData *data=nil;NSFileHandle *file=nil;
+ @try { file=[NSFileHandle fileHandleForReadingFromURL:[self file:bundle] error:nil];data=[file readDataUpToLength:16*1024*1024+1 error:nil]; }
+ @catch(NSException *exception) { (void)exception; }
+ @finally { [file closeAndReturnError:nil]; }
+ if(!data || data.length>16*1024*1024) return @{};
+ return LXStoredState([NSJSONSerialization JSONObjectWithData:data options:0 error:nil]);
 }
 - (BOOL)save:(NSDictionary *)state bundle:(NSString *)bundle {
- NSMutableDictionary *bounded=[state mutableCopy];NSMutableArray *history=[bounded[@"history"] mutableCopy] ?: [NSMutableArray new];
+ NSMutableDictionary *bounded=[LXStoredState(state) mutableCopy];NSMutableArray *history=[bounded[@"history"] mutableCopy] ?: [NSMutableArray new];
  NSData *data=[NSJSONSerialization dataWithJSONObject:bounded options:NSJSONWritingSortedKeys error:nil];
  while(data.length>16*1024*1024 && history.count) { [history removeObjectAtIndex:0];bounded[@"history"]=history;bounded[@"historyTruncated"]=@YES;data=[NSJSONSerialization dataWithJSONObject:bounded options:NSJSONWritingSortedKeys error:nil]; }
  return data && data.length<=16*1024*1024 && [data writeToURL:[self file:bundle] options:NSDataWritingAtomic error:nil];

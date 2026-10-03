@@ -5,4 +5,5 @@
 #define LXMaxFrame (4 * 1024 * 1024)
 NSDictionary *LXMessage(NSString *command, NSDictionary *payload);
 BOOL LXValidate(NSDictionary *message);
+NSString *LXResultReason(NSString *command, NSDictionary *payload, NSDictionary *request);
 NSDictionary *LXError(NSString *code, NSString *detail);

@@ -11,3 +11,6 @@ build/runtime-test | tee artifacts/tests/runtime.txt
 clang -fobjc-arc -fblocks -Wall -Wextra -Werror tests/ipc_test.m shared/LXChannel.m shared/LXProtocol.m shared/LXAuth.m -framework Foundation -o build/ipc-test
 build/ipc-test | tee artifacts/tests/ipc.txt
 python3 -m unittest discover -s tests -p 'test_*.py' -v 2>&1 | tee artifacts/tests/python.txt
+
+clang -fobjc-arc -fblocks -Wall -Wextra -Werror tests/store_test.m controller/LXStore.m controller/LXController.m shared/LXChannel.m shared/LXProtocol.m shared/LXAuth.m -framework Foundation -o build/store-test
+build/store-test | tee artifacts/tests/store.txt
