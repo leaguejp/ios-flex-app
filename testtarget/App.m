@@ -1,5 +1,8 @@
 #import <UIKit/UIKit.h>
 #import "LXFixture.h"
+#if LX_FIXTURE_AUTOMATION
+#import "../agent/LXAgent.h"
+#endif
 @interface LXTestApp : UIResponder <UIApplicationDelegate>
 @property(nonatomic,strong) UIWindow *window;
 @end
@@ -12,7 +15,12 @@
  }
  _text=[UITextView new];_text.editable=NO;_text.font=[UIFont monospacedSystemFontOfSize:13 weight:UIFontWeightRegular];_text.text=@"Pair with Controller, activate, browse LXFixture and enable a supported hook. Return here and call methods. Inspect logs in Controller. Struct and variadic are browse-only.";[stack addArrangedSubview:_text];
  [NSLayoutConstraint activateConstraints:@[[stack.topAnchor constraintEqualToAnchor:_view.view.safeAreaLayoutGuide.topAnchor constant:20],[stack.bottomAnchor constraintEqualToAnchor:_view.view.safeAreaLayoutGuide.bottomAnchor constant:-20],[stack.leadingAnchor constraintEqualToAnchor:_view.view.leadingAnchor constant:16],[stack.trailingAnchor constraintEqualToAnchor:_view.view.trailingAnchor constant:-16]]];
- self.window=[[UIWindow alloc] initWithFrame:UIScreen.mainScreen.bounds];self.window.rootViewController=[[UINavigationController alloc] initWithRootViewController:_view];[self.window makeKeyAndVisible];return YES;
+ self.window=[[UIWindow alloc] initWithFrame:UIScreen.mainScreen.bounds];self.window.rootViewController=[[UINavigationController alloc] initWithRootViewController:_view];[self.window makeKeyAndVisible];
+#if LX_FIXTURE_AUTOMATION
+ NSArray *args=NSProcessInfo.processInfo.arguments;NSUInteger position=[args indexOfObject:@"--lx-test-token"];
+ if(position!=NSNotFound && position+1<args.count) [[LXAgent shared] connectFixtureTestToken:args[position+1]];
+#endif
+ return YES;
 }
 - (void)pair {
  Class cls=NSClassFromString(@"LXAgent");SEL shared=NSSelectorFromString(@"shared"),pair=NSSelectorFromString(@"pairFromController:");

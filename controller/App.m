@@ -18,7 +18,9 @@
 }
 - (void)applicationWillEnterForeground:(UIApplication *)application { if(_background!=UIBackgroundTaskInvalid) { [application endBackgroundTask:_background];_background=UIBackgroundTaskInvalid; } }
 - (void)pair { UIPasteboard.generalPasteboard.string=_controller.token;LXAlert(_root,[NSString stringWithFormat:@"Session token copied:\n%@\n\nIn target app, tap three times with three fingers and paste token. Return here promptly to activate. Background execution is finite; suspension disconnects the Agent and disables hooks.",_controller.token]); }
-- (void)refresh { NSMutableArray *rows=[NSMutableArray new];for(LXSession *s in _controller.sessions) [rows addObject:@{@"title":[NSString stringWithFormat:@"%@ · PID %@",s.identity[@"bundle"],s.identity[@"pid"]],@"subtitle":[NSString stringWithFormat:@"Agent %@ · %@",s.active?@"Active":@"Connected",s.identity[@"executable"]],@"session":s}];_root.rows=rows; }
+- (void)refresh { NSMutableArray *rows=[NSMutableArray new];for(LXSession *s in _controller.sessions) [rows addObject:@{@"title":[NSString stringWithFormat:@"%@ · PID %@",s.identity[@"bundle"],s.identity[@"pid"]],@"subtitle":[NSString stringWithFormat:@"Agent %@ · %@",s.active?@"Active":@"Connected",s.identity[@"executable"]],@"session":s}];_root.rows=rows;
+ if(!rows.count) { UILabel *label=[UILabel new];label.text=@"No paired Agents\n\nChoose Pair to copy a session token.\nOpen an authorized target app,\nthen tap three times with three fingers.\n\nReturn here to select and activate it.";label.numberOfLines=0;label.textAlignment=NSTextAlignmentCenter;label.textColor=UIColor.secondaryLabelColor;label.font=[UIFont systemFontOfSize:15];_root.tableView.backgroundView=label; }else _root.tableView.backgroundView=nil;
+}
 - (void)request:(NSString *)command payload:(NSDictionary *)payload session:(LXSession *)s view:(UIViewController *)view done:(void (^)(NSDictionary *))done {
  [_controller request:command payload:payload session:s completion:^(NSDictionary *r) { if(r[@"error"] && r[@"error"]!=NSNull.null) LXAlert(view,[NSString stringWithFormat:@"%@: %@",r[@"error"][@"code"],r[@"error"][@"detail"]]);else done(r[@"payload"] ?: @{}); }];
 }
@@ -54,7 +56,15 @@
   NSMutableArray *all=[previous mutableCopy];[all addObjectsFromArray:p[@"classes"] ?: @[]];
   if([p[@"next"] unsignedIntegerValue]<[p[@"total"] unsignedIntegerValue]) { [weak classes:image offset:[p[@"next"] unsignedIntegerValue] accumulated:all session:s view:weakView];return; }
   NSMutableArray *rows=[NSMutableArray new];for(NSDictionary *cls in all) [rows addObject:@{@"title":cls[@"name"],@"subtitle":[NSString stringWithFormat:@"Runtime Loaded · superclass %@",cls[@"superclass"]],@"class":cls}];weakView.rows=rows;
-  weakView.selected=^(NSDictionary *row) { [weak request:@"methods" payload:@{@"class":row[@"class"][@"name"]} session:s view:weakView done:^(NSDictionary *methods) { [weak methods:methods[@"methods"] session:s parent:weakView]; }]; };
+  weakView.selected=^(NSDictionary *row) { [weak loadMethods:row[@"class"][@"name"] offset:0 accumulated:@[] session:s parent:weakView]; };
+ }];
+}
+- (void)loadMethods:(NSString *)name offset:(NSUInteger)offset accumulated:(NSArray *)previous session:(LXSession *)s parent:(UIViewController *)parent {
+ __weak LXApp *weak=self;
+ [self request:@"methods" payload:@{@"class":name,@"offset":@(offset)} session:s view:parent done:^(NSDictionary *p) {
+  NSMutableArray *all=[previous mutableCopy];[all addObjectsFromArray:p[@"methods"] ?: @[]];
+  if([p[@"next"] unsignedIntegerValue]<[p[@"total"] unsignedIntegerValue]) [weak loadMethods:name offset:[p[@"next"] unsignedIntegerValue] accumulated:all session:s parent:parent];
+  else [weak methods:all session:s parent:parent];
  }];
 }
 - (void)methods:(NSArray *)methods session:(LXSession *)s parent:(UIViewController *)parent {

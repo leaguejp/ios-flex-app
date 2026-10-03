@@ -30,6 +30,9 @@ static void LXAdded(const struct mach_header *header,intptr_t slide) { (void)hea
  return @{@"classes":[cached subarrayWithRange:NSMakeRange(begin,n)],@"total":@(cached.count),@"next":@(begin+n),@"generation":@(_generation)};
 }
 - (NSDictionary *)methodsInClass:(NSString *)name {
+ return [self methodsInClass:name offset:0];
+}
+- (NSDictionary *)methodsInClass:(NSString *)name offset:(NSUInteger)offset {
  Class cls=objc_getClass(name.UTF8String);if(!cls) return @{@"error":LXError(@"class_missing",@"Class not loaded")};
  NSMutableArray *out=[NSMutableArray new];
  for(unsigned kind=0;kind<2;kind++) { unsigned count=0;Method *methods=class_copyMethodList(kind?object_getClass(cls):cls,&count);
@@ -38,6 +41,8 @@ static void LXAdded(const struct mach_header *header,intptr_t slide) { (void)hea
    [out addObject:@{@"class":name,@"selector":sel,@"classMethod":@(kind!=0),@"encoding":encoding,@"types":LXDescribeEncoding(encoding),@"supported":@(reason==nil),@"unsupportedReason":reason ?: @"",@"provenance":@"Runtime Loaded"}]; }
   free(methods);
  }
- return @{@"methods":out};
+ NSArray *sorted=[out sortedArrayUsingComparator:^NSComparisonResult(NSDictionary *a,NSDictionary *b) { NSComparisonResult kind=[a[@"classMethod"] compare:b[@"classMethod"]];return kind==NSOrderedSame?[a[@"selector"] compare:b[@"selector"]]:kind; }];
+ NSUInteger begin=MIN(offset,sorted.count),length=MIN((NSUInteger)200,sorted.count-begin);
+ return @{@"methods":[sorted subarrayWithRange:NSMakeRange(begin,length)],@"total":@(sorted.count),@"next":@(begin+length)};
 }
 @end

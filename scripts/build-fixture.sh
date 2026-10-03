@@ -11,6 +11,7 @@ dest="build/fixture-$sdk";mkdir -p "$dest/AtlasTestTarget.app"
 app="$dest/AtlasTestTarget.app"
 sysroot=$(xcrun --sdk "$sdk" --show-sdk-path)
 common=(-target "$target" -isysroot "$sysroot" -fblocks -Wall -Wextra -Werror)
+if [[ "$sdk" == iphonesimulator && "${LX_FIXTURE_AUTOMATION:-0}" == 1 ]]; then common+=(-DLX_FIXTURE_AUTOMATION=1);fi
 xcrun --sdk "$sdk" clang "${common[@]}" -fno-objc-arc -c hook/LXHookEngine.m -o "$dest/hook.o"
 xcrun --sdk "$sdk" clang "${common[@]}" -std=c11 -c core/encoding.c -o "$dest/encoding.o"
 xcrun --sdk "$sdk" clang "${common[@]}" -std=c11 -c core/macho.c -o "$dest/macho.o"

@@ -6,6 +6,9 @@
 #import "../static/LXStaticAnalyzer.h"
 #import "../hook/LXHookEngine.h"
 #include <unistd.h>
+#if LX_FIXTURE_AUTOMATION
+#import "../testtarget/LXFixture.h"
+#endif
 @implementation LXAgent {
  LXChannel *_channel;LXScanner *_scanner;LXHookEngine *_hooks;LXStaticAnalyzer *_static;
  dispatch_queue_t _queue;dispatch_source_t _heartbeat;BOOL _active;BOOL _connecting;NSString *_token;
@@ -38,6 +41,9 @@
  }]];[presenter presentViewController:alert animated:YES completion:nil];
 }
 - (NSDictionary *)identity { return @{@"pid":@(getpid()),@"bundle":NSBundle.mainBundle.bundleIdentifier ?: @"unknown",@"executable":NSBundle.mainBundle.executablePath ?: @"",@"bundlePath":NSBundle.mainBundle.bundlePath,@"active":@(_active)}; }
+#if LX_FIXTURE_AUTOMATION
+- (void)connectFixtureTestToken:(NSString *)token { dispatch_async(_queue,^{ self->_token=token;[self connect]; }); }
+#endif
 - (void)connect {
  if(_connecting || (_channel && !_channel.closed)) return;_connecting=YES;
  NSError *error=nil;LXChannel *channel=[LXChannel connectLoopback:&error];_connecting=NO;
@@ -70,7 +76,7 @@
    else if(!_active) out=@{@"error":LXError(@"inactive",@"Activate this Agent explicitly first")};
    else if([command isEqual:@"images"]) out=[_scanner images];
    else if([command isEqual:@"classes"] && [p[@"image"] isKindOfClass:NSString.class] && [p[@"offset"] isKindOfClass:NSNumber.class] && [p[@"offset"] longLongValue]>=0) out=[_scanner classesInImage:p[@"image"] offset:[p[@"offset"] unsignedIntegerValue]];
-   else if([command isEqual:@"methods"] && [p[@"class"] isKindOfClass:NSString.class]) out=[_scanner methodsInClass:p[@"class"]];
+   else if([command isEqual:@"methods"] && [p[@"class"] isKindOfClass:NSString.class] && (!p[@"offset"] || ([p[@"offset"] isKindOfClass:NSNumber.class] && [p[@"offset"] longLongValue]>=0))) out=[_scanner methodsInClass:p[@"class"] offset:[p[@"offset"] unsignedIntegerValue]];
    else if([command isEqual:@"hookEnable"] && [p[@"class"] isKindOfClass:NSString.class] && [p[@"selector"] isKindOfClass:NSString.class] && [p[@"classMethod"] isKindOfClass:NSNumber.class]) {
     if(![NSBundle.mainBundle.bundleIdentifier isEqual:@"jp.league.runtimeatlas.fixture"]) out=@{@"error":LXError(@"unreviewed_bundle",@"Hook declarations reviewed for TestTarget only")};
     else out=[_hooks enableClass:p[@"class"] selector:p[@"selector"] classMethod:[p[@"classMethod"] boolValue]];
@@ -79,9 +85,17 @@
    else if([command isEqual:@"state"]) out=@{@"hooks":[_hooks state],@"active":@(_active)};
    else if([command isEqual:@"logs"]) out=@{@"logs":[_hooks logs]};
    else if([command isEqual:@"static"]) out=[_static analyzeBundle:NSBundle.mainBundle.bundlePath];
+#if LX_FIXTURE_AUTOMATION
+   else if([command isEqual:@"fixtureRun"]) {
+    LXFixture *fixture=[LXFixture new];[fixture ping];id marker=[NSObject new];id echoed=[fixture echo:marker];
+    out=@{@"pings":@(fixture.pings),@"objectIdentity":@(echoed==marker),@"integer":@([fixture addOne:41]),@"bool":@([fixture invert:NO]),@"float":@([fixture scale:2]),@"double":@([fixture doubleValue:2.5]),@"classValue":@([LXFixture classValue])};
+   }
+#endif
    else out=@{@"error":LXError(@"bad_command",@"Unknown command or invalid arguments")};
   } @catch(NSException *exception) { out=@{@"error":LXError(@"agent_exception",exception.name)}; }
  }
- if(out[@"error"]) reply[@"error"]=out[@"error"];reply[@"payload"]=out ?: @{};[channel send:reply];
+ if(out[@"error"]) reply[@"error"]=out[@"error"];reply[@"payload"]=out ?: @{};
+ if([NSJSONSerialization dataWithJSONObject:reply options:0 error:nil].length>LXMaxFrame) { reply[@"payload"]=@{};reply[@"error"]=LXError(@"response_limit",@"Result exceeds frame budget; narrow analysis scope"); }
+ [channel send:reply];
 }
 @end
