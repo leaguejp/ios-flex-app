@@ -72,7 +72,7 @@ int main(void) { @autoreleasepool {
  [bytes writeToFile:@"artifacts/simulator/integration-export.json" atomically:YES];
  NSDictionary *profile=nil;for(NSDictionary *item in staticResult[@"images"]) for(NSDictionary *cls in item[@"classes"]) if([cls[@"name"] isEqual:@"LXFixture"]) for(NSDictionary *method in cls[@"methods"]) if([method[@"selector"] isEqual:@"addOne:"] && ![method[@"classMethod"] boolValue]) profile=method;
  assert(profile && [profile[@"supported"] boolValue] && [profile[@"provenance"] isEqual:@"Static Only"]);
- assert(![controller.store savePatch:@{@"argument":@9,@"return":@77} method:profile bundle:bundle]);
+ assert((![controller.store savePatch:@{@"argument":@9,@"return":@77} method:profile bundle:bundle]));
  saved=[controller.store stateForBundle:bundle];assert([saved[@"desiredHooks"][@"-LXFixture/addOne:"][@"request"][@"provenance"] isEqual:@"Static Only"]);
  NSMutableDictionary *stale=[profile mutableCopy];stale[@"encoding"]=@"q@:d";NSDictionary *mismatch=response(controller,session,@"hookEnable",stale);assert([mismatch[@"error"][@"code"] isEqual:@"encoding_changed"]);
  request(controller,session,@"hookEnable",saved[@"desiredHooks"][@"-LXFixture/addOne:"][@"request"]);

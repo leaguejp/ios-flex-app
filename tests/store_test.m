@@ -21,7 +21,7 @@ int main(void) { @autoreleasepool {
  NSDictionary *history=@{@"history":@[@"bad",@{@"command":@"images",@"response":@{},@"time":@1}]};assert([store save:history bundle:bundle]);assert([[store stateForBundle:bundle][@"history"] count]==1);
  assert([[NSMutableData dataWithLength:17*1024*1024] writeToURL:file atomically:YES]);assert(![store stateForBundle:bundle].count);
  NSDictionary *method=@{@"class":@"LXFixture",@"selector":@"addOne:",@"classMethod":@NO,@"encoding":@"q24@0:8q16",@"supported":@YES,@"provenance":@"Static Only"};NSString *fixture=@"jp.league.runtimeatlas.fixture";
- assert(![store savePatch:@{@"argument":@9,@"return":@77} method:method bundle:fixture]);
+ assert((![store savePatch:@{@"argument":@9,@"return":@77} method:method bundle:fixture]));
  NSDictionary *offline=[store stateForBundle:fixture];assert([offline[@"patches"][@"-LXFixture/addOne:"][@"return"] intValue]==77);assert(![offline[@"desiredHooks"][@"-LXFixture/addOne:"][@"enabled"] boolValue]);
  assert([store savePatch:@{@"return":@1.5} method:method bundle:fixture]);assert([store savePatch:@{@"return":@77} method:method bundle:bundle]);
  NSMutableDictionary *unsupported=[method mutableCopy];unsupported[@"supported"]=@NO;assert([store savePatch:@{@"return":@77} method:unsupported bundle:fixture]);

@@ -14,7 +14,7 @@ static void LXStaticClass(void *context,const char *name,int meta,const char *se
  NSMutableDictionary *record=(__bridge NSMutableDictionary *)context;
  NSString *className=@(name);if(!className) { record[@"metadataError"]=@"invalid_utf8";return; }
  NSMutableDictionary *classes=record[@"classMap"];NSMutableDictionary *cls=classes[className];
- if(!cls) { if(classes.count>=20000) { record[@"metadataTruncated"]=@YES;return; }cls=[@{@"name":className,@"image":record[@"path"],@"provenance":@"Static Only",@"methods":[NSMutableArray new]} mutableCopy];classes[className]=cls; }
+ if(!cls) { NSUInteger classBytes=[record[@"metadataBytes"] unsignedIntegerValue]+strlen(name)+[record[@"path"] length]+256;if(classBytes>128*1024) { record[@"metadataTruncated"]=@YES;return; }record[@"metadataBytes"]=@(classBytes);if(classes.count>=20000) { record[@"metadataTruncated"]=@YES;return; }cls=[@{@"name":className,@"image":record[@"path"],@"provenance":@"Static Only",@"methods":[NSMutableArray new]} mutableCopy];classes[className]=cls; }
  if(!selector) return;
  NSString *sel=@(selector),*type=@(encoding);if(!sel || !type) { record[@"metadataError"]=@"invalid_utf8";return; }
  NSUInteger bytes=[record[@"metadataBytes"] unsignedIntegerValue]+strlen(name)+strlen(selector)+strlen(encoding)+256;
