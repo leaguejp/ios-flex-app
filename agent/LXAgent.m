@@ -13,10 +13,29 @@
 @implementation LXAgent {
  LXChannel *_channel;LXScanner *_scanner;LXHookEngine *_hooks;LXStaticAnalyzer *_static;
  dispatch_queue_t _queue;dispatch_source_t _heartbeat;BOOL _active;BOOL _connecting;BOOL _authenticated;BOOL _serverVerified;NSString *_token;NSString *_nonce;
- NSMutableSet *_seenCommands;NSMutableArray *_commandOrder;
+ NSMutableSet *_seenCommands;NSMutableArray *_commandOrder;NSMutableDictionary *_methodProfiles;NSMutableDictionary *_savedPatches;BOOL _launchPatches;NSArray *_restoreErrors;
 }
 + (instancetype)shared { static LXAgent *agent;static dispatch_once_t once;dispatch_once(&once,^{ agent=[LXAgent new]; });return agent; }
-- (instancetype)init { if((self=[super init])) { _queue=dispatch_queue_create("jp.league.runtimeatlas.agent",DISPATCH_QUEUE_SERIAL);_seenCommands=[NSMutableSet new];_commandOrder=[NSMutableArray new]; }return self; }
+- (instancetype)init { if((self=[super init])) { _queue=dispatch_queue_create("jp.league.runtimeatlas.agent",DISPATCH_QUEUE_SERIAL);_seenCommands=[NSMutableSet new];_commandOrder=[NSMutableArray new];_methodProfiles=[NSMutableDictionary new];_savedPatches=[NSMutableDictionary new];dispatch_async(_queue,^{ [self restoreLaunchPatches]; }); }return self; }
+- (void)saveLaunchPatches {
+ [NSUserDefaults.standardUserDefaults setObject:@{@"schema":@1,@"enabled":@(_launchPatches),@"patches":_savedPatches} forKey:@"jp.league.runtimeatlas.launchPatches"];
+}
+- (void)restoreLaunchPatches {
+ id saved=[NSUserDefaults.standardUserDefaults objectForKey:@"jp.league.runtimeatlas.launchPatches"];
+ if(![saved isKindOfClass:NSDictionary.class] || ![saved[@"schema"] isEqual:@1] || ![saved[@"patches"] isKindOfClass:NSDictionary.class] || [saved[@"patches"] count]>128) return;
+ _savedPatches=[saved[@"patches"] mutableCopy];_launchPatches=[saved[@"enabled"] isKindOfClass:NSNumber.class] && [saved[@"enabled"] boolValue];if(!_launchPatches) return;
+ _hooks=[LXHookEngine new];NSMutableArray *errors=[NSMutableArray new];
+ for(NSString *key in _savedPatches) { @try {
+  NSDictionary *entry=_savedPatches[key];NSDictionary *method=entry[@"method"],*patch=entry[@"patch"];
+  if(![method isKindOfClass:NSDictionary.class] || ![method[@"class"] isKindOfClass:NSString.class] || ![method[@"selector"] isKindOfClass:NSString.class] || ![method[@"classMethod"] isKindOfClass:NSNumber.class] || ![patch isKindOfClass:NSDictionary.class]) { [errors addObject:@{@"key":key,@"error":@"Malformed saved patch"}];continue; }
+  NSString *expected=[NSString stringWithFormat:@"%@%@/%@",[method[@"classMethod"] boolValue]?@"+":@"-",method[@"class"],method[@"selector"]];if(![key isEqual:expected]) { [errors addObject:@{@"key":key,@"error":@"Saved method identity mismatch"}];continue; }
+  NSDictionary *enabled=[_hooks enableClass:method[@"class"] selector:method[@"selector"] classMethod:[method[@"classMethod"] boolValue]];
+  NSDictionary *result=enabled[@"error"]?enabled:[_hooks configurePatch:patch key:enabled[@"key"]];
+  if(result[@"error"]) { if(enabled[@"key"]) [_hooks disableKey:enabled[@"key"]];[errors addObject:@{@"key":key,@"error":result[@"error"]}]; }
+  else { _methodProfiles[key]=method;_active=YES; }
+ } @catch(NSException *exception) { [errors addObject:@{@"key":key,@"error":exception.name}]; } }
+ _restoreErrors=errors;
+}
 - (UIViewController *)presenter {
  for(UIScene *scene in UIApplication.sharedApplication.connectedScenes) if([scene isKindOfClass:UIWindowScene.class] && scene.activationState==UISceneActivationStateForegroundActive)
   for(UIWindow *window in ((UIWindowScene *)scene).windows) if(window.isKeyWindow) { UIViewController *vc=window.rootViewController;while(vc.presentedViewController) vc=vc.presentedViewController;return vc; }
@@ -31,7 +50,7 @@
 }
 - (void)pairGesture:(UITapGestureRecognizer *)gesture { if(gesture.state==UIGestureRecognizerStateRecognized) [self pairFromController:[self presenter]]; }
 - (void)pairFromController:(UIViewController *)presenter {
- UIAlertController *alert=[UIAlertController alertControllerWithTitle:@"Runtime Atlas pairing" message:@"Paste the session token shown in Controller. This permits runtime scanning and reviewed hooks in this app until disconnected." preferredStyle:UIAlertControllerStyleAlert];
+ UIAlertController *alert=[UIAlertController alertControllerWithTitle:@"Runtime Atlas pairing" message:@"Paste the session token shown in Controller. Confirm pairing to permit Controller commands. Interactive hooks end on disconnect; explicitly enabled launch patches can persist." preferredStyle:UIAlertControllerStyleAlert];
  [alert addTextFieldWithConfigurationHandler:^(UITextField *field) { field.placeholder=@"Pairing key";NSString *candidate=UIPasteboard.generalPasteboard.string;NSCharacterSet *hex=[NSCharacterSet characterSetWithCharactersInString:@"0123456789abcdef"];if(candidate.length==32 && [candidate rangeOfCharacterFromSet:hex.invertedSet].location==NSNotFound) field.text=candidate;field.autocorrectionType=UITextAutocorrectionTypeNo;field.autocapitalizationType=UITextAutocapitalizationTypeNone; }];
  [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
  [alert addAction:[UIAlertAction actionWithTitle:@"Pair" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
@@ -61,7 +80,8 @@
  dispatch_source_set_event_handler(_heartbeat,^{ LXAgent *agent=weak;if(agent && agent->_authenticated) [weakChannel send:LXMessage(@"heartbeat",[agent identity])]; });dispatch_resume(_heartbeat);
 }
 - (void)disconnect:(LXChannel *)channel {
- if(channel!=_channel) return;_active=NO;_authenticated=NO;[_hooks disableAll];[_channel close];_channel=nil;_token=nil;_nonce=nil;
+ if(channel!=_channel) return;_active=NO;_authenticated=NO;if(!_launchPatches) [_hooks disableAll];else for(NSDictionary *hook in [_hooks state]) if(!_savedPatches[hook[@"key"]]) [_hooks disableKey:hook[@"key"]];[_channel close];_channel=nil;_token=nil;_nonce=nil;
+ _active=_launchPatches && _savedPatches.count>0;
  if(_heartbeat) { dispatch_source_cancel(_heartbeat);_heartbeat=nil; }[_seenCommands removeAllObjects];[_commandOrder removeAllObjects];
 }
 - (void)handle:(NSDictionary *)m channel:(LXChannel *)channel {
@@ -80,19 +100,25 @@
  else {
   [_seenCommands addObject:identifier];[_commandOrder addObject:identifier];if(_commandOrder.count>256) { [_seenCommands removeObject:_commandOrder[0]];[_commandOrder removeObjectAtIndex:0]; }
   @try {
+   if(_active && [@[@"images",@"classes",@"methods"] containsObject:command] && !_scanner) _scanner=[LXScanner new];
+   if(_active && [command isEqual:@"static"] && !_static) _static=[LXStaticAnalyzer new];
    if([command isEqual:@"activate"]) { _active=YES;if(!_scanner) _scanner=[LXScanner new];if(!_hooks) _hooks=[LXHookEngine new];if(!_static) _static=[LXStaticAnalyzer new];out=[self identity]; }
-   else if([command isEqual:@"deactivate"]) { _active=NO;[_hooks disableAll];out=[self identity]; }
+   else if([command isEqual:@"deactivate"]) { _active=NO;_launchPatches=NO;[self saveLaunchPatches];[_hooks disableAll];out=[self identity]; }
    else if([command isEqual:@"ping"]) out=@{@"echo":p,@"sandboxProbe":@YES};
    else if(!_active) out=@{@"error":LXError(@"inactive",@"Activate this Agent explicitly first")};
    else if([command isEqual:@"images"]) out=[_scanner images];
    else if([command isEqual:@"classes"] && [p[@"image"] isKindOfClass:NSString.class] && [p[@"offset"] isKindOfClass:NSNumber.class] && [p[@"offset"] longLongValue]>=0) out=[_scanner classesInImage:p[@"image"] offset:[p[@"offset"] unsignedIntegerValue]];
    else if([command isEqual:@"methods"] && [p[@"class"] isKindOfClass:NSString.class] && (!p[@"offset"] || ([p[@"offset"] isKindOfClass:NSNumber.class] && [p[@"offset"] longLongValue]>=0))) out=[_scanner methodsInClass:p[@"class"] offset:[p[@"offset"] unsignedIntegerValue]];
    else if([command isEqual:@"hookEnable"] && [p[@"class"] isKindOfClass:NSString.class] && [p[@"selector"] isKindOfClass:NSString.class] && [p[@"classMethod"] isKindOfClass:NSNumber.class]) {
-    out=[_hooks enableClass:p[@"class"] selector:p[@"selector"] classMethod:[p[@"classMethod"] boolValue]];
+    out=[_hooks enableClass:p[@"class"] selector:p[@"selector"] classMethod:[p[@"classMethod"] boolValue]];if(!out[@"error"]) _methodProfiles[out[@"key"]]=@{@"class":p[@"class"],@"selector":p[@"selector"],@"classMethod":p[@"classMethod"]};
    }
-   else if([command isEqual:@"patchApply"] && [p[@"key"] isKindOfClass:NSString.class] && [p[@"patch"] isKindOfClass:NSDictionary.class]) out=[_hooks configurePatch:p[@"patch"] key:p[@"key"]];
-   else if([command isEqual:@"hookDisable"] && [p[@"key"] isKindOfClass:NSString.class]) out=[_hooks disableKey:p[@"key"]];
-   else if([command isEqual:@"state"]) out=@{@"hooks":[_hooks state],@"active":@(_active)};
+   else if([command isEqual:@"patchApply"] && [p[@"key"] isKindOfClass:NSString.class] && [p[@"patch"] isKindOfClass:NSDictionary.class]) {
+    if(_savedPatches.count>=128 && !_savedPatches[p[@"key"]]) out=@{@"error":LXError(@"patch_limit",@"At most 128 saved patches per app")};
+    else { out=[_hooks configurePatch:p[@"patch"] key:p[@"key"]];if(!out[@"error"]) { if([p[@"patch"] count]) _savedPatches[p[@"key"]]=@{@"method":_methodProfiles[p[@"key"]] ?: @{},@"patch":p[@"patch"]};else [_savedPatches removeObjectForKey:p[@"key"]];[self saveLaunchPatches]; } }
+   }
+   else if([command isEqual:@"patchPolicy"] && [p[@"enabled"] isKindOfClass:NSNumber.class]) { _launchPatches=[p[@"enabled"] boolValue];[self saveLaunchPatches];out=@{@"applyOnLaunch":@(_launchPatches)}; }
+   else if([command isEqual:@"hookDisable"] && [p[@"key"] isKindOfClass:NSString.class]) { out=[_hooks disableKey:p[@"key"]];[_savedPatches removeObjectForKey:p[@"key"]];[self saveLaunchPatches]; }
+   else if([command isEqual:@"state"]) out=@{@"hooks":[_hooks state] ?: @[],@"active":@(_active),@"applyOnLaunch":@(_launchPatches),@"restoreErrors":_restoreErrors ?: @[]};
    else if([command isEqual:@"logs"]) out=@{@"logs":[_hooks logs]};
    else if([command isEqual:@"static"]) out=[_static analyzeBundle:NSBundle.mainBundle.bundlePath];
 #if LX_FIXTURE_AUTOMATION

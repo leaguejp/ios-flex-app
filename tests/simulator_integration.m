@@ -72,9 +72,17 @@ int main(void) { @autoreleasepool {
  request(controller,session,@"patchApply",@{@"key":@"-LXFixture/addOne:",@"patch":@{@"argument":@9,@"return":@77}});assert([request(controller,session,@"fixtureRun",@{})[@"integer"] integerValue]==77);
  NSDictionary *bad=response(controller,session,@"patchApply",@{@"key":@"-LXFixture/addOne:",@"patch":@{@"return":@1.5}});assert([bad[@"error"][@"code"] isEqual:@"unsupported_patch"]);
  saved=[controller.store stateForBundle:bundle];assert([saved[@"patches"][@"-LXFixture/addOne:"][@"return"] integerValue]==77);
+ request(controller,session,@"patchPolicy",@{@"enabled":@YES});pump(.5);
+ NSTask *stop=[NSTask new];stop.executableURL=[NSURL fileURLWithPath:@"/usr/bin/xcrun"];stop.arguments=@[@"simctl",@"terminate",device,bundle];assert([stop launchAndReturnError:nil]);[stop waitUntilExit];assert(stop.terminationStatus==0);
+ deadline=[NSDate dateWithTimeIntervalSinceNow:10];while(controller.sessions.count && deadline.timeIntervalSinceNow>0) pump(.01);assert(!controller.sessions.count);
+ launch=[NSTask new];launch.executableURL=[NSURL fileURLWithPath:@"/usr/bin/xcrun"];launch.arguments=@[@"simctl",@"launch",device,bundle,@"--lx-test-token",controller.token];assert([launch launchAndReturnError:nil]);[launch waitUntilExit];assert(launch.terminationStatus==0);
+ deadline=[NSDate dateWithTimeIntervalSinceNow:30];while(!controller.sessions.count && deadline.timeIntervalSinceNow>0) pump(.01);assert(controller.sessions.count==1);session=controller.sessions[0];
+ // No activate/hookEnable/patchApply after relaunch: persisted user authorization alone restores the patch.
+ assert([request(controller,session,@"state",@{})[@"applyOnLaunch"] boolValue]);assert([request(controller,session,@"fixtureRun",@{})[@"integer"] integerValue]==77);
+ request(controller,session,@"patchPolicy",@{@"enabled":@NO});
  request(controller,session,@"hookDisable",@{@"key":@"-LXFixture/addOne:"});checkCalls(request(controller,session,@"fixtureRun",@{}));
  checkUIKit(controller,session);
  request(controller,session,@"deactivate",@{});assert(!session.active);
- puts("Simulator integration PASS: actual Agent, Controller sessions, IPC, loaded images/classes/methods, 7 hooks/originals/logs/disable, static provenance, per-bundle persistence and export");
+ puts("Simulator integration PASS: scalar patches, persisted launch restoration, actual Agent, Controller sessions, IPC, loaded images/classes/methods, 7 hooks/originals/logs/disable, static provenance, per-bundle persistence and export");
  puts("Simulator results are not physical iOS sandbox or jailbreak validation.");
  }return 0; }

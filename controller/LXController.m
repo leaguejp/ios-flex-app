@@ -23,7 +23,7 @@
    NSDictionary *p=m[@"payload"];NSMutableDictionary *body=[p mutableCopy];[body removeObjectForKey:@"proof"];
    if(![m[@"command"] isEqual:@"hello"] || ![p[@"nonce"] isKindOfClass:NSString.class] || [p[@"nonce"] length]!=36 || !LXProofMatches(LXProof(weak.token,@"hello",body),p[@"proof"]) || ![p[@"executable"] isKindOfClass:NSString.class] || ![p[@"bundlePath"] isKindOfClass:NSString.class] || ![p[@"bundle"] isEqual:m[@"bundle"]] || ![p[@"pid"] isEqual:m[@"pid"]]) { [s.channel close];return; }
    // Loopback token authorizes a session; claimed PID/bundle are diagnostic, not OS-attested identities.
-   NSMutableDictionary *identity=[p mutableCopy];[identity removeObjectForKey:@"proof"];[identity removeObjectForKey:@"nonce"];s.identity=identity;
+   NSMutableDictionary *identity=[p mutableCopy];[identity removeObjectForKey:@"proof"];[identity removeObjectForKey:@"nonce"];s.identity=identity;s.active=[identity[@"active"] isKindOfClass:NSNumber.class] && [identity[@"active"] boolValue];
    s.challenge=@{@"agentNonce":p[@"nonce"],@"serverNonce":NSUUID.UUID.UUIDString};NSMutableDictionary *challenge=[s.challenge mutableCopy];challenge[@"proof"]=LXProof(weak.token,@"server",s.challenge);
    [s.channel send:LXMessage(@"helloChallenge",challenge)];return;
   }
@@ -39,7 +39,7 @@
  }); };
  channel.disconnected=^{ dispatch_async(dispatch_get_main_queue(),^{
   LXController *strong=weak;if(!strong) return;LXSession *s=weakSession ?: handshake;
-  if(strong->_connections) strong->_connections--;for(void (^callback)(NSDictionary *) in s.pending.allValues) callback(@{@"error":LXError(@"disconnected",@"Agent disconnected; hooks are disabled by Agent")});
+  if(strong->_connections) strong->_connections--;for(void (^callback)(NSDictionary *) in s.pending.allValues) callback(@{@"error":LXError(@"disconnected",@"Agent disconnected; interactive hooks are disabled. Authorized launch patches may remain active.")});
   [s.pending removeAllObjects];[strong->_sessions removeObject:s];handshake=nil;if(strong.changed) strong.changed();
  }); };
  [channel start];dispatch_after(dispatch_time(DISPATCH_TIME_NOW,10*NSEC_PER_SEC),dispatch_get_main_queue(),^{ if(handshake) [handshake.channel close]; });
@@ -66,6 +66,7 @@
     NSString *key=response[@"payload"][@"key"];if(key) desired[key]=@{ @"enabled":response[@"payload"][@"enabled"] ?: @NO,@"request":[command isEqual:@"hookEnable"]?(payload ?: @{}):(desired[key][@"request"] ?: @{}) };state[@"desiredHooks"]=desired;
    }
    if([command isEqual:@"patchApply"]) { NSMutableDictionary *patches=[state[@"patches"] mutableCopy] ?: [NSMutableDictionary new];patches[payload[@"key"]]=payload[@"patch"];state[@"patches"]=patches; }
+   if([command isEqual:@"patchPolicy"]) state[@"applyOnLaunch"]=payload[@"enabled"];if([command isEqual:@"deactivate"]) state[@"applyOnLaunch"]=@NO;
    state[@"autoRestoreHooks"]=@NO;if(![weak.store save:state bundle:bundle]) { NSMutableDictionary *warning=[response mutableCopy];warning[@"persistenceWarning"]=@"Per-bundle state could not be saved; verify writable application documents directory";response=warning; }
   }
   completion(response);

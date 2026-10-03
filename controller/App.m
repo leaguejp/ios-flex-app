@@ -18,7 +18,7 @@
  _background=[application beginBackgroundTaskWithName:@"RuntimeAtlas pairing grace" expirationHandler:^{ if(self->_background!=UIBackgroundTaskInvalid) { [application endBackgroundTask:self->_background];self->_background=UIBackgroundTaskInvalid; } }];
 }
 - (void)applicationWillEnterForeground:(UIApplication *)application { [self reloadApplications]; if(_background!=UIBackgroundTaskInvalid) { [application endBackgroundTask:_background];_background=UIBackgroundTaskInvalid; } }
-- (void)pair { UIPasteboard.generalPasteboard.string=_controller.token;LXAlert(_root,[NSString stringWithFormat:@"Session token copied:\n%@\n\nIn target app, tap three times with three fingers and paste token. Return here promptly to activate. Background execution is finite; suspension disconnects the Agent and disables hooks.",_controller.token]); }
+- (void)pair { UIPasteboard.generalPasteboard.string=_controller.token;LXAlert(_root,[NSString stringWithFormat:@"Session token copied:\n%@\n\nIn target app, tap three times with three fingers and paste token. Return here promptly to activate. Background execution is finite; suspension disconnects the Agent and disables interactive hooks. Authorized launch patches may remain active.",_controller.token]); }
 - (void)reloadApplications {
  dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY,0),^{ NSString *failure=nil;NSArray *apps=[LXApplications installed:&failure];dispatch_async(dispatch_get_main_queue(),^{ self->_installed=apps;self->_inventoryFailure=failure;[self refresh]; }); });
 }
@@ -48,13 +48,14 @@
 }
 - (void)target:(LXSession *)s {
  LXBrowser *menu=[LXBrowser new];menu.title=s.identity[@"bundle"];
- NSArray *actions=@[@"Activate Agent",@"Runtime Loaded images",@"Static Only bundle",@"Hook state",@"Saved patches",@"Logs",@"Export JSON",@"Saved settings / history",@"IPC feasibility ping",@"Deactivate Agent"];
+ NSArray *actions=@[@"Activate Agent",@"Runtime Loaded images",@"Static Only bundle",@"Hook state",@"Saved patches",@"Enable saved patches on launch",@"Disable saved patches on launch",@"Logs",@"Export JSON",@"Saved settings / history",@"IPC feasibility ping",@"Deactivate Agent"];
  NSMutableArray *rows=[NSMutableArray new];for(NSString *action in actions) [rows addObject:@{@"title":action,@"subtitle":@"",@"action":action}];menu.rows=rows;__weak LXApp *weak=self;__weak LXBrowser *weakMenu=menu;
  menu.selected=^(NSDictionary *row) {
   LXApp *a=weak;LXBrowser *v=weakMenu;NSString *action=row[@"action"];
   if([action isEqual:@"Activate Agent"] || [action isEqual:@"Deactivate Agent"]) [a request:[action hasPrefix:@"Activate"]?@"activate":@"deactivate" payload:@{} session:s view:v done:^(NSDictionary *p) { LXShowJSON(v,action,p);[a refresh]; }];
   else if([action isEqual:@"Runtime Loaded images"]) [a request:@"images" payload:@{} session:s view:v done:^(NSDictionary *p) { [a images:p[@"images"] session:s parent:v runtime:YES]; }];
   else if([action isEqual:@"Static Only bundle"]) [a request:@"static" payload:@{} session:s view:v done:^(NSDictionary *p) { [a images:p[@"images"] session:s parent:v runtime:NO];if([p[@"errors"] count]) LXAlert(v,[NSString stringWithFormat:@"%lu static errors; included in saved/exported result",(unsigned long)[p[@"errors"] count]]); }];
+  else if([action containsString:@"saved patches on launch"]) [a request:@"patchPolicy" payload:@{@"enabled":@([action hasPrefix:@"Enable"])} session:s view:v done:^(NSDictionary *p) { LXShowJSON(v,action,p); }];
   else if([action isEqual:@"Saved patches"]) [a savedPatches:s parent:v];
   else if([action isEqual:@"Hook state"]) [a request:@"state" payload:@{} session:s view:v done:^(NSDictionary *p) { LXShowJSON(v,action,p); }];
   else if([action isEqual:@"Logs"]) [a request:@"logs" payload:@{} session:s view:v done:^(NSDictionary *p) { [a logs:p[@"logs"] parent:v]; }];

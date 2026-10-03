@@ -91,3 +91,5 @@ Reproduce the physical tests in [device-validation.md](device-validation.md), re
 ## Subsequent application-first / scalar patch change
 
 The earlier artifact hashes above are for the stated earlier source revision and do not certify subsequent changes. Revision `32991e1` separately passed both CI package builds and Simulator integration for four UIKit profiles, including a second application bundle where fixture declarations are rejected. The next change adds installed app enumeration, launch/pairing assistance, scalar argument/return patches, saved-patch reapplication and rejection/delegation tests. Its build/test results will be recorded after execution. Physical-device inventory, private API availability, clipboard behavior, injection and sandbox feasibility remain unverified.
+
+Launch-policy addition: Simulator integration now terminates and relaunches the actual fixture process, verifies the saved argument/return patch without issuing activate/hookEnable/patchApply after relaunch, then disables launch policy and hook and verifies original results. Result pending the next CI run.
