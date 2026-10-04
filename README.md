@@ -66,7 +66,7 @@ See [architecture](docs/architecture.md), [IPC feasibility](docs/ipc-feasibility
 
 ## App selection and value patches
 
-The Home Screen app now starts with an installed third-party application list (name/bundle ID/Agent state). LaunchServices is an optional private API invoked only after runtime method-signature checks, without private entitlements. Missing API, errors, denied inventory or denied launch retain the paired-Agent/manual-launch path. Device availability is not established by Simulator results. Connected process identity remains diagnostic detail rather than the selection model.
+The Home Screen app now starts with an installed third-party application list (name/bundle ID/Agent state). LaunchServices is an optional private API invoked only after runtime method-signature checks, without adding inventory/launch-specific entitlements. Controller jailbreak deployment signing is documented separately. Missing API, errors, denied inventory or denied launch retain the paired-Agent/manual-launch path. Device availability is not established by Simulator results. Connected process identity remains diagnostic detail rather than the selection model.
 
 Reviewed UIKit instance methods: `UIView -setHidden:(BOOL)`, `UIView -setAlpha:(CGFloat)` (arm64 double), `UIViewController -viewWillAppear:(BOOL)` and `-viewDidAppear:(BOOL)`. Their signature declarations are compiler-checked against the selected SDK. UIKit wrappers can be enabled in any paired eligible app; they affect the exact system method, not subclass overrides that bypass it.
 
