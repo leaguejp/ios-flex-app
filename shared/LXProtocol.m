@@ -92,8 +92,9 @@ NSString *LXRuntimeCatalogReason(NSDictionary *catalog) {
   for(id cls in image[@"classes"]) {
    classCount++;if(++count>50000) return @"Saved capture exceeds record limit";
    reason=LXResultReason(@"classes",@{@"classes":@[cls],@"next":@1,@"total":@1},@{@"offset":@0});if(reason) return reason;
+   if(![cls[@"image"] isEqual:image[@"path"]]) return @"Captured class/image association mismatch";
    if(![cls[@"methods"] isKindOfClass:NSArray.class]) return @"Missing captured methods";
-   for(id method in cls[@"methods"]) { methodCount++;if(++count>50000) return @"Saved capture exceeds record limit";reason=LXResultReason(@"methods",@{@"methods":@[method],@"next":@1,@"total":@1},@{@"offset":@0});if(reason) return reason; }
+   for(id method in cls[@"methods"]) { methodCount++;if(++count>50000) return @"Saved capture exceeds record limit";reason=LXResultReason(@"methods",@{@"methods":@[method],@"next":@1,@"total":@1},@{@"offset":@0});if(reason) return reason;if(![method[@"class"] isEqual:cls[@"name"]] || ![method[@"image"] isEqual:image[@"path"]]) return @"Captured method/class association mismatch"; }
   }
  }
  NSDictionary *metadata=catalog[@"metadata"];if([metadata[@"imageCount"] unsignedIntegerValue]!=[catalog[@"images"] count] || [metadata[@"classCount"] unsignedIntegerValue]!=classCount || [metadata[@"methodCount"] unsignedIntegerValue]!=methodCount || [metadata[@"total"] unsignedIntegerValue]!=[catalog[@"images"] count]+count) return @"Captured counts disagree with saved records";return nil;
