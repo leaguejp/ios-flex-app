@@ -49,8 +49,19 @@ sleep 3
 xcrun simctl io "$udid" screenshot artifacts/simulator/fixture.png
 # Standard XCUITest selects the real Analyze action and approves modern OS paste prompts.
 xcrun simctl terminate "$udid" jp.league.runtimeatlas.controller
+# Preserve evidence even when XCTest fails, without authentication/pasteboard data.
+collect_launch_evidence() {
+ local documents
+ documents=$(xcrun simctl get_app_container "$udid" jp.league.runtimeatlas.controller data 2>/dev/null) || return 0
+ if [[ -f "$documents/Documents/launch-analysis-test.json" ]]; then
+  cp "$documents/Documents/launch-analysis-test.json" artifacts/simulator/launch-analysis-progress.json
+ fi
+ xcrun simctl io "$udid" screenshot artifacts/simulator/launch-last-screen.png || true
+ xcrun simctl spawn "$udid" log show --last 5m --style compact --predicate 'eventMessage BEGINSWITH "Atlas launch:"' > artifacts/simulator/launch-agent.txt || true
+}
+trap collect_launch_evidence EXIT
 python3 scripts/create-ui-test-project.py
-xcodebuild -project build/LaunchWorkflow.xcodeproj -scheme AtlasLaunchUITests -destination "id=$udid" -derivedDataPath build/ui-derived -resultBundlePath artifacts/simulator/ui-launch.xcresult test CODE_SIGNING_ALLOWED=NO 2>&1 | tee artifacts/simulator/ui-launch.txt
+xcodebuild -parallel-testing-enabled NO -test-timeouts-enabled YES -maximum-test-execution-time-allowance 90 -project build/LaunchWorkflow.xcodeproj -scheme AtlasLaunchUITests -destination "id=$udid" -derivedDataPath build/ui-derived -resultBundlePath artifacts/simulator/ui-launch.xcresult test CODE_SIGNING_ALLOWED=NO 2>&1 | tee artifacts/simulator/ui-launch.txt
 python3 - "$container/Documents/launch-analysis-test.json" <<'PY'
 import json,sys,time,subprocess
 from pathlib import Path

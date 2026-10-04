@@ -10,12 +10,11 @@
  XCTAssertTrue([row waitForExistenceWithTimeout:10]);[row tap];
  XCUIElement *analyze=[atlas.tables.cells containingType:XCUIElementTypeStaticText identifier:@"Analyze app / return to Atlas"].firstMatch;
  XCTAssertTrue(analyze.exists);[analyze tap];
- XCUIApplication *target=[[XCUIApplication alloc] initWithBundleIdentifier:@"jp.league.runtimeatlas.fixture"];
  XCUIApplication *system=[[XCUIApplication alloc] initWithBundleIdentifier:@"com.apple.springboard"];
  NSDate *deadline=[NSDate dateWithTimeIntervalSinceNow:35];BOOL returned=NO;
  while(deadline.timeIntervalSinceNow>0) {
   // Standard system permission interaction, not a TCC/defaults/entitlement bypass.
-  for(XCUIApplication *app in @[system,target]) {
+  for(XCUIApplication *app in @[system]) {
    XCUIElement *allow=app.alerts.buttons[@"Allow Paste"];if(allow.exists) [allow tap];
    XCUIElement *open=app.alerts.buttons[@"Open"];if(open.exists) [open tap];
   }

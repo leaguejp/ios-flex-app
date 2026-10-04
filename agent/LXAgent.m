@@ -16,7 +16,7 @@
 #endif
 @implementation LXAgent {
  LXChannel *_channel;LXScanner *_scanner;LXHookEngine *_hooks;LXStaticAnalyzer *_static;
- dispatch_queue_t _queue;dispatch_source_t _heartbeat;BOOL _active;BOOL _connecting;BOOL _authenticated;BOOL _serverVerified;NSString *_token;NSString *_nonce;
+ dispatch_queue_t _queue;dispatch_source_t _heartbeat;BOOL _active;BOOL _connecting;BOOL _authenticated;BOOL _serverVerified;BOOL _readingLaunch;NSString *_token;NSString *_nonce;
  NSMutableSet *_seenCommands;NSMutableArray *_commandOrder;NSMutableDictionary *_methodProfiles;NSMutableDictionary *_savedPatches;BOOL _launchPatches;NSArray *_restoreErrors;LXCatalog *_catalog;NSString *_analysisRequestID;NSMutableSet *_launchRequests;
 }
 + (instancetype)shared { static LXAgent *agent;static dispatch_once_t once;dispatch_once(&once,^{ agent=[LXAgent new]; });return agent; }
@@ -82,6 +82,14 @@
  }]];[presenter presentViewController:alert animated:YES completion:nil];
 }
 - (void)checkAnalysisLaunch {
+ if(_readingLaunch) return;_readingLaunch=YES;
+ // Activation observers may fire together. Read once after the activation callback
+ // has returned so a paste permission sheet can be presented by an idle UIKit loop.
+ dispatch_async(dispatch_get_main_queue(),^{
+  @try { [self readAnalysisLaunch]; } @finally { self->_readingLaunch=NO; }
+ });
+}
+- (void)readAnalysisLaunch {
  // Called only on foreground activation. A short-lived, selected-bundle ticket is
  // written by an explicit Analyze action; unrelated pasteboard contents are ignored.
  NSString *type=LXAnalysisPasteboardType(NSBundle.mainBundle.bundleIdentifier);
