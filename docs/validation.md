@@ -1,10 +1,10 @@
 # Validation record
 
-Recorded 2026-10-04 JST. Build source revision: `39522c55c4669eab1715a734136e5cb4c13a4e71`. [Final source build run 37158787269](https://github.com/leaguejp/ios-flex-app/actions/runs/37158787269): **both jobs SUCCESS**. Documentation/evidence-only follow-up does not change the tested source.
+Recorded 2026-10-04 JST. Build source revision: `7681af70cd14633a8cb48ae1d01d9ecf65dd3b41`. [Latest source build run 37181607547](https://github.com/leaguejp/ios-flex-app/actions/runs/37181607547): **both complete jobs SUCCESS**. Documentation-only follow-up does not change tested binaries.
 
-## Latest 0.2.0 workflow status: SUCCESS
+## Latest 0.2.3 workflow status: SUCCESS
 
-Source `7da43d3`, [run 37179078049](https://github.com/leaguejp/ios-flex-app/actions/runs/37179078049): rootless and RootHide complete jobs SUCCESS. Downloaded debs independently passed inspection. Rootless XCUITest selected Analyze, captured and persisted 38 classes / 264 methods, returned to Atlas and displayed instance/class methods: 1 test, 0 failures. Physical-device injection and IPC remain unverified. See [detailed evidence](evidence/launch-workflow-status.md).
+The revised local capture / authenticated foreground return / persistence UI workflow passed: 37 classes, 262 methods, real Analyze action, URL return and instance/class method display. Store failure diagnostics, returned catalog validation and actual package entitlement checks passed. See [detailed evidence](evidence/launch-workflow-status.md) and [beta56 design audit](flex56-comparison.md). Physical-device causes and deployment behavior remain unverified.
 
 ## Environment and commands
 
@@ -49,7 +49,7 @@ Simulator automation entry points (`--lx-test-token`, `fixtureRun`, `fixtureUIKi
 | Field | Dopamine rootless | RootHide |
 |---|---|---|
 | Package | `jp.league.runtimeatlas` | `jp.league.runtimeatlas` |
-| Version | `0.1.0` | `0.1.0` |
+| Version | `0.2.3` | `0.2.3` |
 | Debian architecture | `iphoneos-arm64` | `iphoneos-arm64e` |
 | Mach-O CPU (Controller, fixture, Agent) | arm64 | arm64 |
 | ar members | debian-binary, control.tar.gz, data.tar.gz | same |
@@ -64,21 +64,16 @@ Simulator automation entry points (`--lx-test-token`, `fixtureRun`, `fixtureUIKi
 
 Artifacts from tested source:
 
-```text
-jp.league.runtimeatlas_0.1.0_iphoneos-arm64.deb
-SHA256 5b39a7dd731e980a6ad2bde7069ec5c6327def2cee31c7fc26211d0503577cab
+- rootless: `jp.league.runtimeatlas_0.2.3_iphoneos-arm64.deb`, SHA256 `19a3f802b0dea85b3e69c6e19e6a3ab55acc46c75cb2052f24f177e2f107b908`, artifact ID 11294649329.
+- RootHide: `jp.league.runtimeatlas_0.2.3_iphoneos-arm64e.deb`, SHA256 `810bc38fdc96ffcfb80e1ff9045da5db1110f2dc820967186e2ffd039658b434`, artifact ID 11295855187.
 
-jp.league.runtimeatlas_0.1.0_iphoneos-arm64e.deb
-SHA256 9239ad9e346b446f76774ef3534d83676f5b3185675522de7c32c10f6f76826d
-```
-
-CI artifacts `runtimeatlas-rootless` (ID 11283010663) and `runtimeatlas-roothide` (ID 11282496039) contain deb, build log, package report and host test results; rootless artifact additionally contains Simulator screenshots, integration transcript and JSON export. Generated binaries are artifacts, not committed source. Simulator export contains simulator-local paths, so it was not copied into repository evidence. SHA256 values above refer to downloaded actual deb bytes.
+Both contain build/package reports and host tests; rootless also contains Simulator evidence. Raw Simulator JSON with local paths and request IDs is not committed. Actual XML signing keys are recorded in the reports; enforcement on a device is still a separate gate.
 
 Independent local reinspection:
 
 ```sh
-python scripts/inspect_deb.py artifacts/validated-rootless/rootless/jp.league.runtimeatlas_0.1.0_iphoneos-arm64.deb --architecture iphoneos-arm64 --scheme rootless --output artifacts/validated-rootless/rootless/local-package-report.json
-python scripts/inspect_deb.py artifacts/validated-roothide/roothide/jp.league.runtimeatlas_0.1.0_iphoneos-arm64e.deb --architecture iphoneos-arm64e --scheme roothide --output artifacts/validated-roothide/roothide/local-package-report.json
+python scripts/inspect_deb.py artifacts/foreground-final-rootless/rootless/jp.league.runtimeatlas_0.2.3_iphoneos-arm64.deb --architecture iphoneos-arm64 --scheme rootless --output artifacts/foreground-final-rootless/rootless/local-package-report.json
+python scripts/inspect_deb.py artifacts/foreground-final-roothide/roothide/jp.league.runtimeatlas_0.2.3_iphoneos-arm64e.deb --architecture iphoneos-arm64e --scheme roothide --output artifacts/foreground-final-roothide/roothide/local-package-report.json
 # Both PASS; architecture and package identity confirmed.
 ```
 

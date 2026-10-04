@@ -8,8 +8,8 @@
     "Section": "Development",
     "Depends": "firmware (>= 15.0), ellekit",
     "Architecture": "iphoneos-arm64",
-    "Version": "0.1.0",
-    "Installed-Size": "444"
+    "Version": "0.2.3",
+    "Installed-Size": "516"
   },
   "scheme": "rootless",
   "members": [
@@ -64,7 +64,8 @@
         "@loader_path/.jbroot/Library/Frameworks",
         "@loader_path/.jbroot/usr/lib"
       ],
-      "code_signature": true
+      "code_signature": true,
+      "entitlements": {}
     },
     "var/jb/Applications/RuntimeAtlas.app/RuntimeAtlas": {
       "cpu": "arm64",
@@ -81,7 +82,12 @@
         "@loader_path/.jbroot/Library/Frameworks",
         "@loader_path/.jbroot/usr/lib"
       ],
-      "code_signature": true
+      "code_signature": true,
+      "entitlements": {
+        "com.apple.private.security.container-required": false,
+        "com.apple.private.security.no-container": true,
+        "com.apple.private.security.no-sandbox": true
+      }
     },
     "var/jb/Library/MobileSubstrate/DynamicLibraries/RuntimeAtlasAgent.dylib": {
       "cpu": "arm64",
@@ -98,7 +104,8 @@
         "@loader_path/.jbroot/Library/Frameworks",
         "@loader_path/.jbroot/usr/lib"
       ],
-      "code_signature": true
+      "code_signature": true,
+      "entitlements": {}
     }
   }
 }

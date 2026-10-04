@@ -1,8 +1,8 @@
 # Acceptance audit
 
-Audited 2026-10-04 JST against the original requirements and application-first/value-patch clarification. Tested implementation: `39522c55c4669eab1715a734136e5cb4c13a4e71`, CI run [37158787269](https://github.com/leaguejp/ios-flex-app/actions/runs/37158787269). Documentation-only follow-up preserves this implementation.
+Audited 2026-10-04 JST. Latest tested implementation `7681af70cd14633a8cb48ae1d01d9ecf65dd3b41`, [CI run 37181607547](https://github.com/leaguejp/ios-flex-app/actions/runs/37181607547). Documentation follow-up preserves tested binaries.
 
-Latest 0.2.0 rootless/RootHide complete jobs and rootless launch/capture/return UI test PASS. Physical jailbreak validation remains outstanding. [Current evidence](evidence/launch-workflow-status.md). The table below also records the preceding tested scope.
+Latest 0.2.3 rootless/RootHide complete jobs and local capture / foreground-result UI test PASS. Physical jailbreak validation remains outstanding. [Current evidence](evidence/launch-workflow-status.md), [reference audit](flex56-comparison.md).
 
 | Requirement | Authoritative evidence | Status / limit |
 |---|---|---|

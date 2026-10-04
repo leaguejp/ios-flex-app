@@ -1,13 +1,8 @@
-Build source 39522c55c4669eab1715a734136e5cb4c13a4e71
-CI run 37158787269: both jobs SUCCESS
+Build source 7681af70cd14633a8cb48ae1d01d9ecf65dd3b41
+CI run 37181607547: both complete jobs SUCCESS
 core: encoding, classic/relative/chained static Objective-C relationships and malformed Mach-O tests passed
-runtime: scanner, 7 reviewed signatures, originals, arguments/return logs, restore, duplicate, unsupported, scalar patches/original exceptions, no-pool pthread logging, image unload invalidation and conflict tests passed
+runtime: paged runtime catalog, empty-capture diagnostics, scanner, 7 reviewed signatures, originals, arguments/return logs, restore, duplicate, unsupported, scalar patches/original exceptions, no-pool pthread logging, image unload invalidation and conflict tests passed
 IPC: production framed JSON round trip between separate macOS processes passed (NOT iOS sandbox proof)
 Store/Controller: offline scalar patch save/reload/export, unsupported bundle/signature/range rejection; malformed saved JSON, bounded reads, malformed result collections/provenance and nonadvancing pagination rejected without exceptions
-UIKit presenter PASS: App Delegate window lookup and pairing gesture; connected scenes=1 (not proof of a scene-free physical device)
-Simulator integration PASS: static-derived saved patch, stale encoding rejection, scalar patches, persisted launch restoration, actual Agent, Controller sessions, IPC, loaded images/classes/methods, 7 hooks/originals/logs/disable, static provenance, per-bundle persistence and export
-Simulator results are not physical iOS sandbox or jailbreak validation.
-UIKit presenter PASS: App Delegate window lookup and pairing gesture; connected scenes=1 (not proof of a scene-free physical device)
-Secondary bundle PASS: 4 SDK-reviewed UIKit hooks, scalar argument patches, originals/arguments/logs/disable; fixture declarations rejected outside fixture bundle
-Controller inventory / offline class and method analysis PASS: fixture instance/class signatures and unsupported reasons without Agent connection.
-Downloaded rootless and RootHide debs independently reinspected on Windows: PASS. Physical jailbreak/sandbox validation: NOT RUN.
+Foreground result UI: 1 test / 0 failures; 37 classes / 262 methods; current request, provenance, foreground persistence and instance/class selectors asserted.
+Physical sandbox IPC, tweak injection and entitlement enforcement remain unverified.
