@@ -14,6 +14,7 @@
   UIButton *button=[UIButton buttonWithType:UIButtonTypeSystem];[button setTitle:name forState:UIControlStateNormal];[button addTarget:self action:[name hasPrefix:@"Pair"]?@selector(pair):[name hasPrefix:@"Call in"]?@selector(delayed):@selector(run) forControlEvents:UIControlEventTouchUpInside];[stack addArrangedSubview:button];
  }
  _text=[UITextView new];_text.editable=NO;_text.font=[UIFont monospacedSystemFontOfSize:13 weight:UIFontWeightRegular];_text.text=@"Pair with Controller, activate, browse LXFixture and enable a supported hook. Return here and call methods. Inspect logs in Controller. Struct and variadic are browse-only.";[stack addArrangedSubview:_text];
+ Class agentClass=NSClassFromString(@"LXAgent");_text.text=[NSString stringWithFormat:@"Agent: %@\n\n%@",agentClass?@"loaded":@"NOT LOADED — enable TestTarget tweak injection and relaunch",_text.text];
  [NSLayoutConstraint activateConstraints:@[[stack.topAnchor constraintEqualToAnchor:_view.view.safeAreaLayoutGuide.topAnchor constant:20],[stack.bottomAnchor constraintEqualToAnchor:_view.view.safeAreaLayoutGuide.bottomAnchor constant:-20],[stack.leadingAnchor constraintEqualToAnchor:_view.view.leadingAnchor constant:16],[stack.trailingAnchor constraintEqualToAnchor:_view.view.trailingAnchor constant:-16]]];
  self.window=[[UIWindow alloc] initWithFrame:UIScreen.mainScreen.bounds];self.window.rootViewController=[[UINavigationController alloc] initWithRootViewController:_view];[self.window makeKeyAndVisible];
 #if LX_FIXTURE_AUTOMATION

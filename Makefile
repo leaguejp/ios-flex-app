@@ -11,6 +11,7 @@ _THEOS_TARGET_LDFLAGS := $(filter-out -multiply_defined suppress,$(_THEOS_TARGET
 APPLICATION_NAME = RuntimeAtlas AtlasTestTarget
 RuntimeAtlas_FILES = controller/App.m controller/LXApplications.m controller/LXController.m controller/LXStore.m static/LXStaticAnalyzer.m core/macho.c core/encoding.c shared/LXTypes.m ui/LXBrowser.m shared/LXProtocol.m shared/LXChannel.m shared/LXAuth.m shared/LXLaunch.m
 RuntimeAtlas_FRAMEWORKS = UIKit Foundation
+RuntimeAtlas_CODESIGN_FLAGS = -Scontroller/RuntimeAtlas.entitlements
 RuntimeAtlas_CFLAGS = -fobjc-arc -Wall -Wextra -Werror
 RuntimeAtlas_RESOURCE_DIRS = controller/Resources
 RuntimeAtlas_INSTALL_PATH = /Applications

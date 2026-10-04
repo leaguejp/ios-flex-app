@@ -79,6 +79,9 @@
  return [_listener start:error];
 }
 - (void)accept:(LXChannel *)channel {
+#if LX_CONTROLLER_AUTOMATION
+ NSLog(@"Atlas launch: Controller accepted socket");
+#endif
  if(_connections>=16) { [channel close];return; }_connections++;
  LXSession *session=[LXSession new];session.channel=channel;__weak LXController *weak=self;__weak LXSession *weakSession=session;
  // Hold unauthenticated session only until handshake / disconnect; do not expose it in UI.
@@ -90,6 +93,9 @@
    if(![m[@"command"] isEqual:@"hello"] || ![p[@"nonce"] isKindOfClass:NSString.class] || [p[@"nonce"] length]!=36 || !LXProofMatches(LXProof(weak.token,@"hello",body),p[@"proof"]) || ![p[@"executable"] isKindOfClass:NSString.class] || ![p[@"bundlePath"] isKindOfClass:NSString.class] || ![p[@"bundle"] isEqual:m[@"bundle"]] || ![p[@"pid"] isEqual:m[@"pid"]]) { [s.channel close];return; }
    // Loopback token authorizes a session; claimed PID/bundle are diagnostic, not OS-attested identities.
    NSMutableDictionary *identity=[p mutableCopy];[identity removeObjectForKey:@"proof"];[identity removeObjectForKey:@"nonce"];s.identity=identity;s.active=[identity[@"active"] isKindOfClass:NSNumber.class] && [identity[@"active"] boolValue];
+#if LX_CONTROLLER_AUTOMATION
+   NSLog(@"Atlas launch: Controller verified hello");
+#endif
    s.challenge=@{@"agentNonce":p[@"nonce"],@"serverNonce":NSUUID.UUID.UUIDString};NSMutableDictionary *challenge=[s.challenge mutableCopy];challenge[@"proof"]=LXProof(weak.token,@"server",s.challenge);
    [s.channel send:LXMessage(@"helloChallenge",challenge)];return;
   }

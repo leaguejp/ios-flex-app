@@ -1,5 +1,5 @@
 """Inspect actual ar/deb, compression, every tar header, metadata, Mach-O and links."""
-import argparse, gzip, io, json, struct, tarfile
+import argparse, gzip, io, json, struct, tarfile, plistlib
 from pathlib import Path
 
 def ar_members(data):
@@ -42,7 +42,7 @@ def macho(data):
     if cpu != 0x100000c or subtype & 0xffffff != 0:
         raise ValueError('expected arm64 (not arm64e) code')
     n, count = struct.unpack_from('<II',data,16)
-    p, links, rpaths, signed = 32, [], [], False
+    p, links, rpaths, signed, entitlements = 32, [], [], False, {}
     end = p+count
     if end > len(data): raise ValueError('truncated Mach-O commands')
     for _ in range(n):
@@ -53,14 +53,29 @@ def macho(data):
             if off>=size: raise ValueError('invalid load string')
             value=data[p+off:p+size].split(b'\0')[0].decode()
             (rpaths if cmd==0x8000001c else links).append(value)
-        if cmd == 0x1d: signed = True
+        if cmd == 0x1d:
+            signed = True
+            if size < 16: raise ValueError('invalid signature command')
+            off,length=struct.unpack_from('<II',data,p+8)
+            if length < 12 or off+length>len(data): raise ValueError('signature outside binary')
+            blob=data[off:off+length];magic,total,items=struct.unpack_from('>III',blob)
+            if magic != 0xfade0cc0 or total>length or 12+items*8>total: raise ValueError('invalid signature superblob')
+            for j in range(items):
+                kind,index=struct.unpack_from('>II',blob,12+j*8)
+                if index+8>total: raise ValueError('invalid signature slot')
+                slotmagic,slotlen=struct.unpack_from('>II',blob,index)
+                if slotlen<8 or index+slotlen>total: raise ValueError('invalid signature blob bounds')
+                if slotmagic==0xfade7171:
+                    if entitlements: raise ValueError('duplicate entitlements')
+                    entitlements=plistlib.loads(blob[index+8:index+slotlen])
+                    if not isinstance(entitlements,dict): raise ValueError('invalid entitlements dictionary')
         p += size
     if p != end or not signed: raise ValueError('unsigned or malformed Mach-O')
     for link in links:
         if 'flex' in link.lower(): raise ValueError('unexpected FLEX dependency')
         if not link.startswith(('/System/Library/', '/usr/lib/', '@rpath/')):
             raise ValueError('unexpected library path: '+link)
-    return dict(cpu='arm64',dependencies=links,rpaths=rpaths,code_signature=True)
+    return dict(cpu='arm64',dependencies=links,rpaths=rpaths,code_signature=True,entitlements=entitlements)
 
 def inspect(path, architecture, scheme):
     members=ar_members(Path(path).read_bytes())
@@ -95,6 +110,11 @@ def inspect(path, architecture, scheme):
             if blob[:4]==b'\xcf\xfa\xed\xfe': binaries[name]=macho(blob)
     expected={'RuntimeAtlas','AtlasTestTarget','RuntimeAtlasAgent.dylib'}
     if {Path(n).name for n in binaries} != expected: raise ValueError('missing/unexpected binaries')
+    controller=next(v for n,v in binaries.items() if Path(n).name=='RuntimeAtlas')
+    expected_entitlements={'com.apple.private.security.no-container':True,'com.apple.private.security.no-sandbox':True,'com.apple.private.security.container-required':False}
+    if controller['entitlements']!=expected_entitlements: raise ValueError('Controller deployment entitlements missing/unexpected')
+    for name,entry in binaries.items():
+        if Path(name).name!='RuntimeAtlas' and entry['entitlements']: raise ValueError('unexpected privileges in Agent/TestTarget')
     return dict(package=info,scheme=scheme,members=list(members),compression='gzip',tar='ustar (every header checked)',control_headers=ch,data_headers=dh,binaries=binaries)
 
 if __name__=='__main__':

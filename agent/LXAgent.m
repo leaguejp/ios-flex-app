@@ -114,7 +114,7 @@
   if(!success) { UIViewController *view=[self presenter];if(!view || view.presentedViewController) return;UIAlertController *alert=[UIAlertController alertControllerWithTitle:@"Atlas analysis finished" message:@"Switch back to Runtime Atlas to view the result." preferredStyle:UIAlertControllerStyleAlert];[alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];[view presentViewController:alert animated:YES completion:nil]; }
  }]; });
 }
-- (NSDictionary *)identity { return @{@"pid":@(getpid()),@"bundle":NSBundle.mainBundle.bundleIdentifier ?: @"unknown",@"executable":NSBundle.mainBundle.executablePath ?: @"",@"bundlePath":NSBundle.mainBundle.bundlePath,@"active":@(_active),@"analysisRequestID":_analysisRequestID ?: @"",@"agentRelease":@"0.2.1"}; }
+- (NSDictionary *)identity { return @{@"pid":@(getpid()),@"bundle":NSBundle.mainBundle.bundleIdentifier ?: @"unknown",@"executable":NSBundle.mainBundle.executablePath ?: @"",@"bundlePath":NSBundle.mainBundle.bundlePath,@"active":@(_active),@"analysisRequestID":_analysisRequestID ?: @"",@"agentRelease":@"0.2.2"}; }
 #if LX_FIXTURE_AUTOMATION
 - (void)connectFixtureTestToken:(NSString *)token { dispatch_async(_queue,^{ self->_token=token;[self connect]; }); }
 #endif
@@ -125,6 +125,9 @@
   UIViewController *presenter=[self presenter];if(!presenter || presenter.presentedViewController) return;
   UIAlertController *alert=[UIAlertController alertControllerWithTitle:@"Runtime Atlas connection failed" message:error.localizedDescription ?: @"Open Controller and pair again" preferredStyle:UIAlertControllerStyleAlert];[alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];[presenter presentViewController:alert animated:YES completion:nil];
  });return; }_channel=channel;
+#if LX_FIXTURE_AUTOMATION
+ NSLog(@"Atlas launch: socket connected");
+#endif
  __weak LXAgent *weak=self;__weak LXChannel *weakChannel=channel;
  channel.received=^(NSDictionary *m) { LXAgent *agent=weak;if(agent) dispatch_async(agent->_queue,^{ [agent handle:m channel:weakChannel]; }); };
  channel.disconnected=^{ LXAgent *agent=weak;if(agent) dispatch_async(agent->_queue,^{ [agent disconnect:weakChannel]; }); };
@@ -143,9 +146,16 @@
  if([m[@"command"] isEqual:@"helloChallenge"]) {
   NSDictionary *p=m[@"payload"];NSDictionary *body=@{@"agentNonce":_nonce ?: @"",@"serverNonce":[p[@"serverNonce"] isKindOfClass:NSString.class]?p[@"serverNonce"]:@""};
   if(![p[@"agentNonce"] isEqual:_nonce] || [body[@"serverNonce"] length]!=36 || !LXProofMatches(LXProof(_token,@"server",body),p[@"proof"])) { [channel close];return; }
+#if LX_FIXTURE_AUTOMATION
+  NSLog(@"Atlas launch: server proof verified");
+#endif
   _serverVerified=YES;NSMutableDictionary *finish=[body mutableCopy];finish[@"proof"]=LXProof(_token,@"client",body);[channel send:LXMessage(@"helloFinish",finish)];return;
  }
- if([m[@"command"] isEqual:@"helloAck"]) { if(!_serverVerified) { [channel close];return; }_authenticated=YES;return; }
+ if([m[@"command"] isEqual:@"helloAck"]) { if(!_serverVerified) { [channel close];return; }_authenticated=YES;
+#if LX_FIXTURE_AUTOMATION
+ NSLog(@"Atlas launch: authentication complete");
+#endif
+ return; }
  if(!_authenticated) { [channel close];return; }
  NSString *identifier=m[@"commandID"],*command=m[@"command"];NSDictionary *p=m[@"payload"];
  NSMutableDictionary *reply=[LXMessage(command,@{}) mutableCopy];reply[@"responseID"]=identifier;
