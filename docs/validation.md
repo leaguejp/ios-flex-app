@@ -2,9 +2,9 @@
 
 Recorded 2026-10-04 JST. Build source revision: `39522c55c4669eab1715a734136e5cb4c13a4e71`. [Final source build run 37158787269](https://github.com/leaguejp/ios-flex-app/actions/runs/37158787269): **both jobs SUCCESS**. Documentation/evidence-only follow-up does not change the tested source.
 
-## Latest 0.2.0 workflow status: BUILD PASS / UI NOT VERIFIED
+## Latest 0.2.0 workflow status: SUCCESS
 
-Public standard macOS runners now execute. Both 0.2.0 packages built, host tests passed, and downloaded debs independently passed inspection. The corrected XCUITest runner compiled and selected Analyze, but the target accessibility query timed out. End-to-end launch/capture/return and physical-device behavior remain unverified. See [detailed current status](evidence/launch-workflow-status.md).
+Source `7da43d3`, [run 37179078049](https://github.com/leaguejp/ios-flex-app/actions/runs/37179078049): rootless and RootHide complete jobs SUCCESS. Downloaded debs independently passed inspection. Rootless XCUITest selected Analyze, captured and persisted 38 classes / 264 methods, returned to Atlas and displayed instance/class methods: 1 test, 0 failures. Physical-device injection and IPC remain unverified. See [detailed evidence](evidence/launch-workflow-status.md).
 
 ## Environment and commands
 
