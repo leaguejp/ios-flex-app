@@ -53,6 +53,9 @@ xcrun simctl launch "$udid" jp.league.runtimeatlas.controller --lx-test-launch-a
 sleep 1
 # Also covers the manual Home Screen fallback if private LaunchServices launch is unavailable.
 xcrun simctl launch "$udid" jp.league.runtimeatlas.fixture
+sleep 2
+xcrun simctl io "$udid" screenshot artifacts/simulator/launch-target.png
+xcrun simctl spawn "$udid" log show --last 2m --style compact --predicate 'eventMessage BEGINSWITH "Atlas launch:"' > artifacts/simulator/launch-agent-status.txt || true
 python3 - "$container/Documents/launch-analysis-test.json" <<'PY'
 import json,sys,time,subprocess
 from pathlib import Path

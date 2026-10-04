@@ -89,7 +89,11 @@
  NSLog(@"Atlas launch: foreground app=%@ matching-ticket=%d",NSBundle.mainBundle.bundleIdentifier,[UIPasteboard.generalPasteboard containsPasteboardTypes:@[type]]);
 #endif
  if(![UIPasteboard.generalPasteboard containsPasteboardTypes:@[type]]) return;NSData *data=[UIPasteboard.generalPasteboard dataForPasteboardType:type];if(data.length>2048) return;
- NSDictionary *ticket=LXReadAnalysisTicket([[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding],NSBundle.mainBundle.bundleIdentifier,NSDate.date.timeIntervalSince1970);if(!ticket) return;
+ NSDictionary *ticket=LXReadAnalysisTicket([[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding],NSBundle.mainBundle.bundleIdentifier,NSDate.date.timeIntervalSince1970);
+#if LX_FIXTURE_AUTOMATION
+ NSLog(@"Atlas launch: ticket bytes=%lu valid=%d",(unsigned long)data.length,ticket!=nil);
+#endif
+ if(!ticket) return;
  dispatch_async(_queue,^{
   if(!self->_launchRequests) self->_launchRequests=[NSMutableSet new];NSString *request=ticket[@"requestID"];if([self->_launchRequests containsObject:request]) return;
   if(self->_launchRequests.count>=32) [self->_launchRequests removeAllObjects];[self->_launchRequests addObject:request];
