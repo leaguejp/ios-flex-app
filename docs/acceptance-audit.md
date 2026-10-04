@@ -2,7 +2,7 @@
 
 Audited 2026-10-04 JST against the original requirements and application-first/value-patch clarification. Tested implementation: `39522c55c4669eab1715a734136e5cb4c13a4e71`, CI run [37158787269](https://github.com/leaguejp/ios-flex-app/actions/runs/37158787269). Documentation-only follow-up preserves this implementation.
 
-Latest app-launch/capture/return fix is implemented but unverified. An intermediate Simulator return test failed; subsequent macOS jobs were rejected for GitHub billing before execution. [Current 0.2.0 evidence and blocker](evidence/launch-workflow-status.md). The table below primarily records the preceding fully tested scope.
+Latest app-launch/capture/return packages compile and pass host/package checks after the repository became public. The new UI test times out querying the target; end-to-end behavior remains unverified. [Current 0.2.0 evidence](evidence/launch-workflow-status.md). The table below primarily records the preceding fully tested scope.
 
 | Requirement | Authoritative evidence | Status / limit |
 |---|---|---|
