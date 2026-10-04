@@ -18,6 +18,11 @@
  [weak writeLaunchTest];
 #endif
  };_root.selected=^(NSDictionary *row) { if([row[@"action"] isEqual:@"manualPair"]) [weak pair];else if(row[@"application"]) [weak installedTarget:row[@"application"]];else [weak target:row[@"session"]]; };
+ for(NSString *name in @[UIApplicationDidBecomeActiveNotification,UISceneDidActivateNotification]) [NSNotificationCenter.defaultCenter addObserverForName:name object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) { (void)note;dispatch_async(dispatch_get_main_queue(),^{ [weak showAnalysisIfReady];
+#if LX_CONTROLLER_AUTOMATION
+ [weak writeLaunchTest];
+#endif
+ }); }];
  NSError *error=nil;if(![_controller start:&error]) dispatch_async(dispatch_get_main_queue(),^{ LXApp *strong=weak;if(strong) LXAlert(strong->_root,[NSString stringWithFormat:@"IPC listener failed: %@",error.localizedDescription]); });[self reloadApplications];return YES;
 }
 - (void)applicationDidEnterBackground:(UIApplication *)application {

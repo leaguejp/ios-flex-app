@@ -20,7 +20,9 @@
  NSMutableSet *_seenCommands;NSMutableArray *_commandOrder;NSMutableDictionary *_methodProfiles;NSMutableDictionary *_savedPatches;BOOL _launchPatches;NSArray *_restoreErrors;LXCatalog *_catalog;NSString *_analysisRequestID;NSMutableSet *_launchRequests;
 }
 + (instancetype)shared { static LXAgent *agent;static dispatch_once_t once;dispatch_once(&once,^{ agent=[LXAgent new]; });return agent; }
-- (instancetype)init { if((self=[super init])) { _queue=dispatch_queue_create("jp.league.runtimeatlas.agent",DISPATCH_QUEUE_SERIAL);_seenCommands=[NSMutableSet new];_commandOrder=[NSMutableArray new];_methodProfiles=[NSMutableDictionary new];_savedPatches=[NSMutableDictionary new];dispatch_async(_queue,^{ [self restoreLaunchPatches]; }); }return self; }
+- (instancetype)init { if((self=[super init])) { _queue=dispatch_queue_create("jp.league.runtimeatlas.agent",DISPATCH_QUEUE_SERIAL);_seenCommands=[NSMutableSet new];_commandOrder=[NSMutableArray new];_methodProfiles=[NSMutableDictionary new];_savedPatches=[NSMutableDictionary new];dispatch_async(_queue,^{ [self restoreLaunchPatches]; });
+ __weak LXAgent *weak=self;for(NSString *name in @[UIApplicationDidBecomeActiveNotification,UISceneDidActivateNotification]) [NSNotificationCenter.defaultCenter addObserverForName:name object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) { (void)note;[weak installPairingGesture];[weak checkAnalysisLaunch]; }];
+ }return self; }
 - (NSDictionary *)enableProfile:(NSDictionary *)profile {
  id encoding=profile[@"encoding"];
  if(encoding) {
