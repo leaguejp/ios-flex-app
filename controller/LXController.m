@@ -27,7 +27,8 @@
   NSDictionary *catalog=@{@"metadata":_analysis[@"metadata"],@"images":_catalogImages,@"bundle":_analysis[@"bundle"],@"requestID":request,@"pid":session.identity[@"pid"]};
   NSString *reason=LXRuntimeCatalogReason(catalog);if(reason) { [self finishAnalysis:session request:request error:reason];return; }
   NSMutableDictionary *state=[[self.store stateForBundle:session.identity[@"bundle"]] mutableCopy];state[@"runtimeCatalog"]=catalog;
-  if(![self.store save:state bundle:session.identity[@"bundle"]]) [self cancelAnalysis:@"Runtime results could not be saved. Previous results are retained."];
+  NSError *saveError=nil;
+  if(![self.store save:state bundle:session.identity[@"bundle"] error:&saveError]) [self cancelAnalysis:[NSString stringWithFormat:@"Runtime results could not be saved. Previous results are retained.\n%@",saveError.localizedDescription ?: @"Unknown persistence error"]];
   else { _analysis[@"status"]=@"complete";_analysis[@"detail"]=@"Runtime results saved";if(self.changed) self.changed(); }
  }
  [self request:@"analysisReturn" payload:@{@"requestID":request} session:session completion:^(NSDictionary *response) { if(response[@"error"] && response[@"error"]!=NSNull.null) { self->_analysis[@"returnWarning"]=@"Automatic return failed; switch back to Atlas manually.";if(self.changed) self.changed(); } }];

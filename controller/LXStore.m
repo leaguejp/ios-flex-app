@@ -45,10 +45,30 @@ static NSDictionary *LXStoredState(id value) {
  return LXStoredState([NSJSONSerialization JSONObjectWithData:data options:0 error:nil]);
 }
 - (BOOL)save:(NSDictionary *)state bundle:(NSString *)bundle {
+ return [self save:state bundle:bundle error:nil];
+}
+- (BOOL)save:(NSDictionary *)state bundle:(NSString *)bundle error:(NSError **)error {
+ if(error) *error=nil;
  NSMutableDictionary *bounded=[LXStoredState(state) mutableCopy];NSMutableArray *history=[bounded[@"history"] mutableCopy] ?: [NSMutableArray new];
- NSData *data=[NSJSONSerialization dataWithJSONObject:bounded options:NSJSONWritingSortedKeys error:nil];
- while(data.length>16*1024*1024 && history.count) { [history removeObjectAtIndex:0];bounded[@"history"]=history;bounded[@"historyTruncated"]=@YES;data=[NSJSONSerialization dataWithJSONObject:bounded options:NSJSONWritingSortedKeys error:nil]; }
- return data && data.length<=16*1024*1024 && [data writeToURL:[self file:bundle] options:NSDataWritingAtomic error:nil];
+ if(![NSJSONSerialization isValidJSONObject:bounded]) {
+  if(error) *error=[NSError errorWithDomain:@"jp.league.runtimeatlas.store" code:1 userInfo:@{NSLocalizedDescriptionKey:@"JSON serialization failed: state contains a non-JSON value"}];return NO;
+ }
+ NSError *failure=nil;NSData *data=[NSJSONSerialization dataWithJSONObject:bounded options:NSJSONWritingSortedKeys error:&failure];
+ while(data.length>16*1024*1024 && history.count) { [history removeObjectAtIndex:0];bounded[@"history"]=history;bounded[@"historyTruncated"]=@YES;data=[NSJSONSerialization dataWithJSONObject:bounded options:NSJSONWritingSortedKeys error:&failure]; }
+ if(!data) { if(error) *error=failure;return NO; }
+ if(data.length>16*1024*1024) {
+  if(error) *error=[NSError errorWithDomain:@"jp.league.runtimeatlas.store" code:2 userInfo:@{NSLocalizedDescriptionKey:[NSString stringWithFormat:@"Saved state is %lu bytes; maximum is 16777216 bytes after trimming history",(unsigned long)data.length]}];return NO;
+ }
+ NSURL *file=[self file:bundle];NSURL *directory=[file URLByDeletingLastPathComponent];
+ NSString *stage=@"create directory";
+ BOOL success=[NSFileManager.defaultManager createDirectoryAtURL:directory withIntermediateDirectories:YES attributes:@{NSFileProtectionKey:NSFileProtectionCompleteUntilFirstUserAuthentication} error:&failure];
+ if(success) { stage=@"atomic write";success=[data writeToURL:file options:NSDataWritingAtomic error:&failure]; }
+ if(!success && error) {
+  NSString *detail=[NSString stringWithFormat:@"%@ failed (%@/%ld): %@. Storage: %@. JSON: %lu bytes",stage,failure.domain ?: @"unknown",(long)failure.code,failure.localizedDescription ?: @"Unknown filesystem error",directory.path,(unsigned long)data.length];
+  NSMutableDictionary *info=[@{NSLocalizedDescriptionKey:detail} mutableCopy];if(failure) info[NSUnderlyingErrorKey]=failure;
+  *error=[NSError errorWithDomain:@"jp.league.runtimeatlas.store" code:3 userInfo:info];
+ }
+ return success;
 }
 - (NSString *)savePatch:(NSDictionary *)patch method:(NSDictionary *)method bundle:(NSString *)bundle {
  if(!bundle.length || ![method isKindOfClass:NSDictionary.class] || ![method[@"class"] isKindOfClass:NSString.class] || ![method[@"selector"] isKindOfClass:NSString.class] || ![method[@"encoding"] isKindOfClass:NSString.class] || ![method[@"classMethod"] isKindOfClass:NSNumber.class] || ![method[@"supported"] isKindOfClass:NSNumber.class] || ![method[@"supported"] boolValue]) return @"Unsupported or malformed method definition";

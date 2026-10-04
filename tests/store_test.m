@@ -5,6 +5,12 @@
 @interface LXStore (TestFile)
 - (NSURL *)file:(NSString *)bundle;
 @end
+@interface LXBlockedStore : LXStore
+@property(nonatomic,strong) NSURL *blockedFile;
+@end
+@implementation LXBlockedStore
+- (NSURL *)file:(NSString *)bundle { (void)bundle;return self.blockedFile; }
+@end
 static void checkRejected(LXController *controller,NSString *command,NSDictionary *payload) {
  LXSession *session=[LXSession new];session.identity=@{@"bundle":@"jp.league.runtimeatlas.storetest"};
  __block NSDictionary *received=nil;
@@ -28,6 +34,17 @@ int main(void) { @autoreleasepool {
  NSURL *export=[store exportBundle:fixture error:nil];NSDictionary *json=[NSJSONSerialization JSONObjectWithData:[NSData dataWithContentsOfURL:export] options:0 error:nil];assert([json[@"desiredHooks"][@"-LXFixture/addOne:"][@"request"][@"provenance"] isEqual:@"Static Only"]);
  [NSFileManager.defaultManager removeItemAtURL:[store file:fixture] error:nil];[NSFileManager.defaultManager removeItemAtURL:export error:nil];
  [NSFileManager.defaultManager removeItemAtURL:file error:nil];
+ // Failure reasons must survive to UI; failed writes must preserve prior bytes.
+ NSError *saveError=nil;assert([store save:@{@"marker":@"previous"} bundle:bundle error:&saveError] && !saveError);
+ NSData *previous=[NSData dataWithContentsOfURL:[store file:bundle]];
+ assert(![store save:@{@"huge":[@"x" stringByPaddingToLength:17*1024*1024 withString:@"x" startingAtIndex:0]} bundle:bundle error:&saveError]);assert(saveError.code==2);
+ assert([[NSData dataWithContentsOfURL:[store file:bundle]] isEqual:previous]);
+ assert(![store save:@{@"unknown":NSDate.date} bundle:bundle error:&saveError]);assert(saveError.code==1);
+ NSURL *obstruction=[NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:NSUUID.UUID.UUIDString]];
+ assert([[@"file blocks directory" dataUsingEncoding:NSUTF8StringEncoding] writeToURL:obstruction atomically:YES]);
+ LXBlockedStore *blocked=[LXBlockedStore new];blocked.blockedFile=[obstruction URLByAppendingPathComponent:@"state.json"];
+ assert(![blocked save:@{} bundle:bundle error:&saveError]);assert(saveError.code==3 && saveError.userInfo[NSUnderlyingErrorKey]);assert([saveError.localizedDescription containsString:@"create directory"]);
+ [NSFileManager.defaultManager removeItemAtURL:obstruction error:nil];[NSFileManager.defaultManager removeItemAtURL:[store file:bundle] error:nil];
  LXController *controller=[LXController new];
  checkRejected(controller,@"methods",@{@"methods":NSNull.null,@"next":@1,@"total":@1});
  checkRejected(controller,@"classes",@{@"classes":@[],@"next":@0,@"total":@200});
