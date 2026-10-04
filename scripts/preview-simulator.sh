@@ -47,15 +47,10 @@ xcrun simctl io "$udid" screenshot artifacts/simulator/controller.png
 xcrun simctl launch "$udid" jp.league.runtimeatlas.fixture
 sleep 3
 xcrun simctl io "$udid" screenshot artifacts/simulator/fixture.png
-# Exercise actual Controller UIApplication -> selected target Agent -> custom URL return.
+# Standard XCUITest selects the real Analyze action and approves modern OS paste prompts.
 xcrun simctl terminate "$udid" jp.league.runtimeatlas.controller
-xcrun simctl launch "$udid" jp.league.runtimeatlas.controller --lx-test-launch-analysis
-sleep 1
-# Also covers the manual Home Screen fallback if private LaunchServices launch is unavailable.
-xcrun simctl launch "$udid" jp.league.runtimeatlas.fixture
-sleep 2
-xcrun simctl io "$udid" screenshot artifacts/simulator/launch-target.png
-xcrun simctl spawn "$udid" log show --last 2m --style compact --predicate 'eventMessage BEGINSWITH "Atlas launch:"' > artifacts/simulator/launch-agent-status.txt || true
+python3 scripts/create-ui-test-project.py
+xcodebuild -project build/LaunchWorkflow.xcodeproj -scheme AtlasLaunchUITests -destination "id=$udid" -derivedDataPath build/ui-derived -resultBundlePath artifacts/simulator/ui-launch.xcresult test CODE_SIGNING_ALLOWED=NO 2>&1 | tee artifacts/simulator/ui-launch.txt
 python3 - "$container/Documents/launch-analysis-test.json" <<'PY'
 import json,sys,time,subprocess
 from pathlib import Path
@@ -76,7 +71,7 @@ fixture=next(c for i in result['catalog']['images'] for c in i['classes'] if c['
 assert any(m['selector']=='addOne:' and m['encoding'] and not m['classMethod'] for m in fixture['methods'])
 assert any(m['selector']=='classValue' and m['classMethod'] for m in fixture['methods'])
 assert all(m['provenance']=='Runtime Loaded' for m in fixture['methods'])
-print('Launch/capture/return PASS: production Controller foreground -> selected Agent auto-auth -> runtime instance/class methods persisted -> URL return -> saved results visible; no manual token entry')
+print('Launch/capture/return PASS: real Analyze UI action -> selected Agent auto-auth -> runtime instance/class methods persisted -> URL return -> saved results visible; standard OS paste permission interaction, no manual token entry')
 PY
 cp "$container/Documents/launch-analysis-test.json" artifacts/simulator/launch-analysis-test.json
 xcrun simctl io "$udid" screenshot artifacts/simulator/captured-runtime.png

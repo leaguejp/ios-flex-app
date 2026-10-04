@@ -25,10 +25,11 @@
  }); }];
  NSError *error=nil;if(![_controller start:&error]) dispatch_async(dispatch_get_main_queue(),^{ LXApp *strong=weak;if(strong) LXAlert(strong->_root,[NSString stringWithFormat:@"IPC listener failed: %@",error.localizedDescription]); });[self reloadApplications];return YES;
 }
-- (void)applicationDidEnterBackground:(UIApplication *)application {
- if(_background!=UIBackgroundTaskInvalid) [application endBackgroundTask:_background];
- _background=[application beginBackgroundTaskWithName:@"RuntimeAtlas pairing grace" expirationHandler:^{ [self->_controller cancelAnalysis:@"iOS ended the background analysis window. Retry analysis; prior results are retained."];if(self->_background!=UIBackgroundTaskInvalid) { [application endBackgroundTask:self->_background];self->_background=UIBackgroundTaskInvalid; } }];
+- (void)beginTransferWindow {
+ if(_background!=UIBackgroundTaskInvalid) return;UIApplication *application=UIApplication.sharedApplication;
+ _background=[application beginBackgroundTaskWithName:@"RuntimeAtlas analysis transfer" expirationHandler:^{ [self->_controller cancelAnalysis:@"iOS ended the background analysis window. Retry analysis; prior results are retained."];if(self->_background!=UIBackgroundTaskInvalid) { [application endBackgroundTask:self->_background];self->_background=UIBackgroundTaskInvalid; } }];
 }
+- (void)applicationDidEnterBackground:(UIApplication *)application { (void)application;[self beginTransferWindow]; }
 - (void)applicationWillEnterForeground:(UIApplication *)application { [self reloadApplications];dispatch_async(dispatch_get_main_queue(),^{ [self showAnalysisIfReady]; }); if(_background!=UIBackgroundTaskInvalid) { [application endBackgroundTask:_background];_background=UIBackgroundTaskInvalid; } }
 - (void)applicationDidBecomeActive:(UIApplication *)application { (void)application;[self showAnalysisIfReady];
 #if LX_CONTROLLER_AUTOMATION
@@ -46,6 +47,7 @@
 }
 - (void)startAnalysis:(NSDictionary *)application parent:(UIViewController *)parent {
  _analysisReturnReceived=NO;NSString *ticket=[_controller prepareAnalysisForBundle:application[@"bundle"]];if(!ticket) { LXAlert(parent,@"An analysis is already running. Return after it finishes, or retry after the timeout.");return; }
+ [self beginTransferWindow];
  [UIPasteboard.generalPasteboard setItems:@[@{LXAnalysisPasteboardType(application[@"bundle"]):[ticket dataUsingEncoding:NSUTF8StringEncoding]}] options:@{UIPasteboardOptionLocalOnly:@YES,UIPasteboardOptionExpirationDate:[NSDate dateWithTimeIntervalSinceNow:90]}];
  if(![LXApplications openBundle:application[@"bundle"]]) LXAlert(parent,@"Automatic launch is unavailable. Open the selected app from Home Screen now; the Agent will capture its loaded methods and return to Atlas. If it does not return, switch back and check the status.");
 }
@@ -62,7 +64,7 @@
 }
 #if LX_CONTROLLER_AUTOMATION
 - (void)writeLaunchTest {
- if(![NSProcessInfo.processInfo.arguments containsObject:@"--lx-test-launch-analysis"] || !_controller.analysis) return;
+ if(![NSProcessInfo.processInfo.arguments containsObject:@"--lx-test-launch-analysis"] && ![NSProcessInfo.processInfo.arguments containsObject:@"--lx-test-record-launch-analysis"]) return;if(!_controller.analysis) return;
  NSDictionary *catalog=[_controller.store stateForBundle:_controller.analysis[@"bundle"]][@"runtimeCatalog"] ?: @{};
  NSData *data=[NSJSONSerialization dataWithJSONObject:@{@"analysis":_controller.analysis,@"catalog":catalog,@"returned":@(_analysisReturnReceived),@"foreground":@(UIApplication.sharedApplication.applicationState==UIApplicationStateActive),@"visibleTitle":_root.navigationController.topViewController.title ?: @""} options:NSJSONWritingPrettyPrinted error:nil];
  NSAssert(![[[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] containsString:_controller.token],@"Launch evidence must not contain authentication key");
@@ -187,7 +189,7 @@
 }
 - (void)methods:(NSArray *)methods bundle:(NSString *)bundle session:(LXSession *)s parent:(UIViewController *)parent {
  LXBrowser *view=[LXBrowser new];view.title=@"Methods";NSMutableArray *rows=[NSMutableArray new];
- for(NSDictionary *method in methods) [rows addObject:@{@"title":[NSString stringWithFormat:@"%@ %@",[method[@"classMethod"] boolValue]?@"+":@"-",method[@"selector"]],@"subtitle":[NSString stringWithFormat:@"%@ · %@",method[@"encoding"],[method[@"supported"] boolValue]?@"Hook supported":method[@"unsupportedReason"]],@"method":method}];view.rows=rows;__weak LXApp *weak=self;__weak LXBrowser *weakView=view;
+ for(NSDictionary *method in methods) [rows addObject:@{@"title":[NSString stringWithFormat:@"%@ %@",[method[@"classMethod"] boolValue]?@"+":@"-",method[@"selector"]],@"subtitle":[NSString stringWithFormat:@"%@ · %@",method[@"encoding"],[method[@"supported"] boolValue]?@"Hook supported":method[@"unsupportedReason"]],@"method":method}];if(!rows.count) [rows addObject:@{@"title":@"No declared Objective-C methods",@"subtitle":@"Inherited methods belong to the superclass; Swift-only methods may not expose selectors",@"enabled":@NO}];view.rows=rows;__weak LXApp *weak=self;__weak LXBrowser *weakView=view;
  view.selected=^(NSDictionary *row) {
   NSDictionary *m=row[@"method"];LXBrowser *detail=[LXBrowser new];detail.title=m[@"selector"];
   detail.rows=@[@{@"title":@"Selector / type encoding / provenance",@"subtitle":m[@"encoding"],@"action":@"info"},@{@"title":@"Enable hook",@"subtitle":[m[@"supported"] boolValue]?@"Reviewed ABI":m[@"unsupportedReason"],@"action":@"enable",@"enabled":@(s!=nil && [m[@"supported"] boolValue])},@{@"title":@"Create / save scalar patch",@"subtitle":@"Save definition; verify runtime types before applying",@"action":@"patch",@"enabled":m[@"supported"]},@{@"title":@"Disable hook",@"subtitle":@"Restores original if no conflict",@"action":@"disable",@"enabled":@(s!=nil && [m[@"supported"] boolValue])}];
