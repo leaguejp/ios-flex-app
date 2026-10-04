@@ -54,16 +54,19 @@ sleep 1
 # Also covers the manual Home Screen fallback if private LaunchServices launch is unavailable.
 xcrun simctl launch "$udid" jp.league.runtimeatlas.fixture
 python3 - "$container/Documents/launch-analysis-test.json" <<'PY'
-import json,sys,time
+import json,sys,time,subprocess
 from pathlib import Path
 file=Path(sys.argv[1]);deadline=time.monotonic()+35
 while time.monotonic()<deadline:
     if file.exists():
         result=json.loads(file.read_text())
+        Path('artifacts/simulator/launch-analysis-progress.json').write_text(json.dumps(result,indent=2))
         if result['analysis']['status']=='failed': raise AssertionError(result['analysis'])
         if result['returned'] and result['foreground'] and result['visibleTitle']=='Captured Runtime Loaded': break
     time.sleep(.2)
-else: raise AssertionError('Launch/capture/return did not complete')
+else:
+    print('Last launch state:',result.get('analysis') if 'result' in locals() else 'No Controller job evidence')
+    raise AssertionError('Launch/capture/return did not complete')
 assert result['analysis']['status']=='complete'
 assert result['catalog']['metadata']['methodCount']>0
 fixture=next(c for i in result['catalog']['images'] for c in i['classes'] if c['name']=='LXFixture')

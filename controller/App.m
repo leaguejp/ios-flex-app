@@ -13,7 +13,11 @@
  (void)app;(void)options;_background=UIBackgroundTaskInvalid;_controller=[LXController new];_root=[LXBrowser new];_root.title=@"Runtime Atlas";
  self.window=[[UIWindow alloc] initWithFrame:UIScreen.mainScreen.bounds];self.window.rootViewController=[[UINavigationController alloc] initWithRootViewController:_root];[self.window makeKeyAndVisible];
  _root.navigationItem.rightBarButtonItem=[[UIBarButtonItem alloc] initWithTitle:@"Refresh" style:UIBarButtonItemStylePlain target:self action:@selector(reloadApplications)];
- __weak LXApp *weak=self;_controller.changed=^{ [weak refresh];[weak showAnalysisIfReady]; };_root.selected=^(NSDictionary *row) { if([row[@"action"] isEqual:@"manualPair"]) [weak pair];else if(row[@"application"]) [weak installedTarget:row[@"application"]];else [weak target:row[@"session"]]; };
+ __weak LXApp *weak=self;_controller.changed=^{ [weak refresh];[weak showAnalysisIfReady];
+#if LX_CONTROLLER_AUTOMATION
+ [weak writeLaunchTest];
+#endif
+ };_root.selected=^(NSDictionary *row) { if([row[@"action"] isEqual:@"manualPair"]) [weak pair];else if(row[@"application"]) [weak installedTarget:row[@"application"]];else [weak target:row[@"session"]]; };
  NSError *error=nil;if(![_controller start:&error]) dispatch_async(dispatch_get_main_queue(),^{ LXApp *strong=weak;if(strong) LXAlert(strong->_root,[NSString stringWithFormat:@"IPC listener failed: %@",error.localizedDescription]); });[self reloadApplications];return YES;
 }
 - (void)applicationDidEnterBackground:(UIApplication *)application {
@@ -53,7 +57,7 @@
 }
 #if LX_CONTROLLER_AUTOMATION
 - (void)writeLaunchTest {
- if(![NSProcessInfo.processInfo.arguments containsObject:@"--lx-test-launch-analysis"] || ![@[@"complete",@"failed"] containsObject:_controller.analysis[@"status"]]) return;
+ if(![NSProcessInfo.processInfo.arguments containsObject:@"--lx-test-launch-analysis"] || !_controller.analysis) return;
  NSDictionary *catalog=[_controller.store stateForBundle:_controller.analysis[@"bundle"]][@"runtimeCatalog"] ?: @{};
  NSData *data=[NSJSONSerialization dataWithJSONObject:@{@"analysis":_controller.analysis,@"catalog":catalog,@"returned":@(_analysisReturnReceived),@"foreground":@(UIApplication.sharedApplication.applicationState==UIApplicationStateActive),@"visibleTitle":_root.navigationController.topViewController.title ?: @""} options:NSJSONWritingPrettyPrinted error:nil];
  NSAssert(![[[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] containsString:_controller.token],@"Launch evidence must not contain authentication key");

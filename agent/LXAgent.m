@@ -82,7 +82,11 @@
 - (void)checkAnalysisLaunch {
  // Called only on foreground activation. A short-lived, selected-bundle ticket is
  // written by an explicit Analyze action; unrelated pasteboard contents are ignored.
- NSString *type=LXAnalysisPasteboardType(NSBundle.mainBundle.bundleIdentifier);if(![UIPasteboard.generalPasteboard containsPasteboardTypes:@[type]]) return;NSData *data=[UIPasteboard.generalPasteboard dataForPasteboardType:type];if(data.length>2048) return;
+ NSString *type=LXAnalysisPasteboardType(NSBundle.mainBundle.bundleIdentifier);
+#if LX_FIXTURE_AUTOMATION
+ NSLog(@"Atlas launch: foreground app=%@ matching-ticket=%d",NSBundle.mainBundle.bundleIdentifier,[UIPasteboard.generalPasteboard containsPasteboardTypes:@[type]]);
+#endif
+ if(![UIPasteboard.generalPasteboard containsPasteboardTypes:@[type]]) return;NSData *data=[UIPasteboard.generalPasteboard dataForPasteboardType:type];if(data.length>2048) return;
  NSDictionary *ticket=LXReadAnalysisTicket([[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding],NSBundle.mainBundle.bundleIdentifier,NSDate.date.timeIntervalSince1970);if(!ticket) return;
  dispatch_async(_queue,^{
   if(!self->_launchRequests) self->_launchRequests=[NSMutableSet new];NSString *request=ticket[@"requestID"];if([self->_launchRequests containsObject:request]) return;
