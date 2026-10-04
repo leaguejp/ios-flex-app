@@ -105,7 +105,19 @@
  dispatch_async(_queue,^{
   if(!self->_launchRequests) self->_launchRequests=[NSMutableSet new];NSString *request=ticket[@"requestID"];if([self->_launchRequests containsObject:request]) return;
   if(self->_launchRequests.count>=32) [self->_launchRequests removeAllObjects];[self->_launchRequests addObject:request];
-  if(self->_channel) [self disconnect:self->_channel];self->_analysisRequestID=request;self->_token=ticket[@"token"];[self connect];
+  // Foreground analysis is self-contained; Controller need not run in background.
+  LXScanner *scanner=[LXScanner new];LXCatalog *capture=[LXCatalog new];NSDictionary *metadata=[capture capture:scanner bundlePath:NSBundle.mainBundle.bundlePath];
+  NSDictionary *catalog=[capture snapshot:metadata bundle:ticket[@"bundle"] request:request pid:@(getpid())];
+  NSData *result=LXAnalysisResult(catalog,catalog?nil:@"Runtime capture validation failed",ticket);
+  if(!result) result=LXAnalysisResult(nil,@"Runtime result exceeds 8 MiB limit",ticket);
+  dispatch_async(dispatch_get_main_queue(),^{
+   if(!result) return;
+   [UIPasteboard.generalPasteboard setItems:@[@{LXAnalysisResultPasteboardType(ticket[@"bundle"]):result}] options:@{UIPasteboardOptionLocalOnly:@YES,UIPasteboardOptionExpirationDate:[NSDate dateWithTimeIntervalSince1970:[ticket[@"expiresAt"] doubleValue]]}];
+#if LX_FIXTURE_AUTOMATION
+   NSLog(@"Atlas launch: local capture ready, classes=%@ methods=%@ bytes=%lu",metadata[@"classCount"],metadata[@"methodCount"],(unsigned long)result.length);
+#endif
+   [self returnToAtlas:request];
+  });
  });
 }
 - (void)returnToAtlas:(NSString *)request {
@@ -114,7 +126,7 @@
   if(!success) { UIViewController *view=[self presenter];if(!view || view.presentedViewController) return;UIAlertController *alert=[UIAlertController alertControllerWithTitle:@"Atlas analysis finished" message:@"Switch back to Runtime Atlas to view the result." preferredStyle:UIAlertControllerStyleAlert];[alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];[view presentViewController:alert animated:YES completion:nil]; }
  }]; });
 }
-- (NSDictionary *)identity { return @{@"pid":@(getpid()),@"bundle":NSBundle.mainBundle.bundleIdentifier ?: @"unknown",@"executable":NSBundle.mainBundle.executablePath ?: @"",@"bundlePath":NSBundle.mainBundle.bundlePath,@"active":@(_active),@"analysisRequestID":_analysisRequestID ?: @"",@"agentRelease":@"0.2.2"}; }
+- (NSDictionary *)identity { return @{@"pid":@(getpid()),@"bundle":NSBundle.mainBundle.bundleIdentifier ?: @"unknown",@"executable":NSBundle.mainBundle.executablePath ?: @"",@"bundlePath":NSBundle.mainBundle.bundlePath,@"active":@(_active),@"analysisRequestID":_analysisRequestID ?: @"",@"agentRelease":@"0.2.3"}; }
 #if LX_FIXTURE_AUTOMATION
 - (void)connectFixtureTestToken:(NSString *)token { dispatch_async(_queue,^{ self->_token=token;[self connect]; }); }
 #endif

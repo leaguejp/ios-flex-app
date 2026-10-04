@@ -8,7 +8,7 @@
 @interface LXApp : UIResponder <UIApplicationDelegate>
 @property(nonatomic,strong) UIWindow *window;
 @end
-@implementation LXApp { LXController *_controller;LXBrowser *_root; UIBackgroundTaskIdentifier _background;NSArray *_installed;NSString *_inventoryFailure;NSString *_shownAnalysis;BOOL _analysisReturnReceived;BOOL _automationLaunchStarted; }
+@implementation LXApp { LXController *_controller;LXBrowser *_root; UIBackgroundTaskIdentifier _background;NSArray *_installed;NSString *_inventoryFailure;NSString *_shownAnalysis;BOOL _analysisReturnReceived;BOOL _automationLaunchStarted;BOOL _consumingAnalysis; }
 - (BOOL)application:(UIApplication *)app didFinishLaunchingWithOptions:(NSDictionary *)options {
  (void)app;(void)options;_background=UIBackgroundTaskInvalid;_controller=[LXController new];_root=[LXBrowser new];_root.title=@"Runtime Atlas";
  self.window=[[UIWindow alloc] initWithFrame:UIScreen.mainScreen.bounds];self.window.rootViewController=[[UINavigationController alloc] initWithRootViewController:_root];[self.window makeKeyAndVisible];
@@ -26,6 +26,7 @@
  NSError *error=nil;if(![_controller start:&error]) dispatch_async(dispatch_get_main_queue(),^{ LXApp *strong=weak;if(strong) LXAlert(strong->_root,[NSString stringWithFormat:@"IPC listener failed: %@",error.localizedDescription]); });[self reloadApplications];return YES;
 }
 - (void)beginTransferWindow {
+ if([_controller.analysis[@"transport"] isEqual:@"foregroundResult"]) return;
  if(_background!=UIBackgroundTaskInvalid) return;UIApplication *application=UIApplication.sharedApplication;
  _background=[application beginBackgroundTaskWithName:@"RuntimeAtlas analysis transfer" expirationHandler:^{ [self->_controller cancelAnalysis:@"iOS ended the background analysis window. Retry analysis; prior results are retained."];if(self->_background!=UIBackgroundTaskInvalid) { [application endBackgroundTask:self->_background];self->_background=UIBackgroundTaskInvalid; } }];
 }
@@ -47,11 +48,25 @@
 }
 - (void)startAnalysis:(NSDictionary *)application parent:(UIViewController *)parent {
  _analysisReturnReceived=NO;NSString *ticket=[_controller prepareAnalysisForBundle:application[@"bundle"]];if(!ticket) { LXAlert(parent,@"An analysis is already running. Return after it finishes, or retry after the timeout.");return; }
- [self beginTransferWindow];
  [UIPasteboard.generalPasteboard setItems:@[@{LXAnalysisPasteboardType(application[@"bundle"]):[ticket dataUsingEncoding:NSUTF8StringEncoding]}] options:@{UIPasteboardOptionLocalOnly:@YES,UIPasteboardOptionExpirationDate:[NSDate dateWithTimeIntervalSinceNow:90]}];
  if(![LXApplications openBundle:application[@"bundle"]]) LXAlert(parent,@"Automatic launch is unavailable. Open the selected app from Home Screen now; the Agent will capture its loaded methods and return to Atlas. If it does not return, switch back and check the status.");
 }
+- (void)consumeAnalysisResult {
+ if(_consumingAnalysis) return;_consumingAnalysis=YES;
+ dispatch_async(dispatch_get_main_queue(),^{ @try { [self readAnalysisResult]; } @finally { self->_consumingAnalysis=NO; } });
+}
+- (void)readAnalysisResult {
+ NSDictionary *job=_controller.analysis;
+ if(UIApplication.sharedApplication.applicationState!=UIApplicationStateActive || ![@[@"waiting",@"capturing"] containsObject:job[@"status"]]) return;
+ NSString *type=LXAnalysisResultPasteboardType(job[@"bundle"]);if(![UIPasteboard.generalPasteboard containsPasteboardTypes:@[type]]) return;
+ NSData *data=[UIPasteboard.generalPasteboard dataForPasteboardType:type];NSDictionary *result=LXReadAnalysisResult(data,job[@"bundle"],job[@"requestID"],_controller.token,NSDate.date.timeIntervalSince1970);
+ if(!result) { [_controller cancelAnalysis:@"Returned result failed identity, integrity, expiry or catalog validation. Previous results retained."];return; }
+ // Clear only after a validated selected-job envelope; never read unrelated content.
+ UIPasteboard.generalPasteboard.items=@[];
+ if(result[@"error"]!=NSNull.null) [_controller cancelAnalysis:result[@"error"]];else [_controller acceptAnalysisCatalog:result[@"catalog"]];
+}
 - (void)showAnalysisIfReady {
+ [self consumeAnalysisResult];
  NSDictionary *job=_controller.analysis;if(!job || UIApplication.sharedApplication.applicationState!=UIApplicationStateActive || [job[@"requestID"] isEqual:_shownAnalysis]) return;
  if(![@[@"complete",@"failed"] containsObject:job[@"status"]]) return;_shownAnalysis=job[@"requestID"];
  NSData *ticketData=[UIPasteboard.generalPasteboard dataForPasteboardType:LXAnalysisPasteboardType(job[@"bundle"])];NSDictionary *ticket=LXReadAnalysisTicket([[NSString alloc] initWithData:ticketData encoding:NSUTF8StringEncoding],job[@"bundle"],NSDate.date.timeIntervalSince1970);if([ticket[@"requestID"] isEqual:job[@"requestID"]]) UIPasteboard.generalPasteboard.items=@[];

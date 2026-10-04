@@ -4,4 +4,5 @@
 @interface LXCatalog : NSObject
 - (NSDictionary *)capture:(LXScanner *)scanner bundlePath:(NSString *)path;
 - (NSDictionary *)page:(NSString *)captureID offset:(NSUInteger)offset;
+- (NSDictionary *)snapshot:(NSDictionary *)metadata bundle:(NSString *)bundle request:(NSString *)request pid:(NSNumber *)pid;
 @end

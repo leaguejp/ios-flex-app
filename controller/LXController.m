@@ -11,12 +11,19 @@
 - (NSDictionary *)analysis { return [_analysis copy]; }
 - (NSString *)prepareAnalysisForBundle:(NSString *)bundle {
  if([_analysis[@"status"] isEqual:@"waiting"] || [_analysis[@"status"] isEqual:@"capturing"]) return nil;
- NSString *identifier=NSUUID.UUID.UUIDString;_analysis=[@{@"bundle":bundle,@"requestID":identifier,@"status":@"waiting",@"detail":@"Waiting for target Agent. If nothing appears, return to Atlas and check tweak injection."} mutableCopy];
+ NSString *identifier=NSUUID.UUID.UUIDString;_analysis=[@{@"bundle":bundle,@"requestID":identifier,@"status":@"waiting",@"transport":@"foregroundResult",@"detail":@"Waiting for target Agent. If nothing appears, return to Atlas and check tweak injection."} mutableCopy];
  if(self.changed) self.changed();
- dispatch_after(dispatch_time(DISPATCH_TIME_NOW,25*NSEC_PER_SEC),dispatch_get_main_queue(),^{ if([self->_analysis[@"requestID"] isEqual:identifier] && [@[@"waiting",@"capturing"] containsObject:self->_analysis[@"status"]]) [self cancelAnalysis:@"Analysis did not complete within the background window. After updating, restart the target to load the new Agent. Check injection/paste permission, then retry. Captured methods were not replaced with an empty success result."]; });
+ dispatch_after(dispatch_time(DISPATCH_TIME_NOW,90*NSEC_PER_SEC),dispatch_get_main_queue(),^{ if([self->_analysis[@"requestID"] isEqual:identifier] && [@[@"waiting",@"capturing"] containsObject:self->_analysis[@"status"]]) [self cancelAnalysis:@"Analysis did not complete within the background window. After updating, restart the target to load the new Agent. Check injection/paste permission, then retry. Captured methods were not replaced with an empty success result."]; });
  return LXAnalysisTicket(bundle,self.token,identifier);
 }
 - (void)cancelAnalysis:(NSString *)reason { if(!_analysis) return;if(![@[@"waiting",@"capturing"] containsObject:_analysis[@"status"]]) return;_analysis[@"status"]=@"failed";_analysis[@"detail"]=reason;_catalogImages=nil;_catalogClasses=nil;if(self.changed) self.changed(); }
+- (void)acceptAnalysisCatalog:(NSDictionary *)catalog {
+ if(![@[@"waiting",@"capturing"] containsObject:_analysis[@"status"]] || ![catalog[@"bundle"] isEqual:_analysis[@"bundle"]] || ![catalog[@"requestID"] isEqual:_analysis[@"requestID"]]) return;
+ NSString *reason=LXRuntimeCatalogReason(catalog);if(reason) { [self cancelAnalysis:reason];return; }
+ NSMutableDictionary *state=[[self.store stateForBundle:_analysis[@"bundle"]] mutableCopy];state[@"runtimeCatalog"]=catalog;NSError *error=nil;
+ if(![self.store save:state bundle:_analysis[@"bundle"] error:&error]) { [self cancelAnalysis:[NSString stringWithFormat:@"Runtime results could not be saved. Previous results are retained.\n%@",error.localizedDescription ?: @"Unknown persistence error"]];return; }
+ _analysis[@"status"]=@"complete";_analysis[@"metadata"]=catalog[@"metadata"];_analysis[@"detail"]=@"Runtime results saved after foreground return";if(self.changed) self.changed();
+}
 - (BOOL)analysisMatches:(LXSession *)session request:(NSString *)request {
  return [_analysis[@"requestID"] isEqual:request] && [_analysis[@"bundle"] isEqual:session.identity[@"bundle"]] && [_analysis[@"status"] isEqual:@"capturing"];
 }

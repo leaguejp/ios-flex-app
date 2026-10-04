@@ -1,6 +1,6 @@
 Package: jp.league.runtimeatlas
 Name: Runtime Atlas
-Version: 0.2.2
+Version: 0.2.3
 Architecture: iphoneos-arm64
 Description: Independent runtime inspector and reviewed Objective-C hook test workbench
 Maintainer: leaguejp

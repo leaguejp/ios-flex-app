@@ -48,4 +48,14 @@ done:
  NSUInteger count=MIN((NSUInteger)100,_records.count-offset);
  return @{@"captureID":_identifier,@"records":[_records subarrayWithRange:NSMakeRange(offset,count)],@"next":@(offset+count),@"total":@(_records.count)};
 }
+- (NSDictionary *)snapshot:(NSDictionary *)metadata bundle:(NSString *)bundle request:(NSString *)request pid:(NSNumber *)pid {
+ NSMutableArray *images=[NSMutableArray new];NSMutableDictionary *imageByPath=[NSMutableDictionary new],*classByName=[NSMutableDictionary new];
+ for(NSDictionary *record in _records) {
+  NSDictionary *data=record[@"data"];NSString *kind=record[@"kind"];
+  if([kind isEqual:@"image"]) { NSMutableDictionary *image=[data mutableCopy];image[@"classes"]=[NSMutableArray new];[images addObject:image];imageByPath[data[@"path"]]=image; }
+  else if([kind isEqual:@"class"]) { NSMutableDictionary *owner=imageByPath[data[@"image"]];if(!owner || classByName[data[@"name"]]) return nil;NSMutableDictionary *cls=[data mutableCopy];cls[@"methods"]=[NSMutableArray new];[owner[@"classes"] addObject:cls];classByName[data[@"name"]]=cls; }
+  else { NSMutableDictionary *cls=classByName[data[@"class"]];if(!cls || ![cls[@"image"] isEqual:data[@"image"]]) return nil;[cls[@"methods"] addObject:data]; }
+ }
+ NSDictionary *catalog=@{@"metadata":metadata,@"images":images,@"bundle":bundle,@"requestID":request,@"pid":pid};return LXRuntimeCatalogReason(catalog)?nil:catalog;
+}
 @end

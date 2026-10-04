@@ -16,6 +16,7 @@
 @property(nonatomic,copy) void (^changed)(void);
 @property(nonatomic,strong,readonly) NSDictionary *analysis;
 - (NSString *)prepareAnalysisForBundle:(NSString *)bundle;
+- (void)acceptAnalysisCatalog:(NSDictionary *)catalog;
 - (void)cancelAnalysis:(NSString *)reason;
 - (BOOL)start:(NSError **)error;
 - (void)request:(NSString *)command payload:(NSDictionary *)payload session:(LXSession *)session completion:(void (^)(NSDictionary *))completion;

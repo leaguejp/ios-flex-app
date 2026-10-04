@@ -77,12 +77,13 @@ else:
     print('Last launch state:',result.get('analysis') if 'result' in locals() else 'No Controller job evidence')
     raise AssertionError('Launch/capture/return did not complete')
 assert result['analysis']['status']=='complete'
+assert result['analysis']['transport']=='foregroundResult'
 assert result['catalog']['metadata']['methodCount']>0
 fixture=next(c for i in result['catalog']['images'] for c in i['classes'] if c['name']=='LXFixture')
 assert any(m['selector']=='addOne:' and m['encoding'] and not m['classMethod'] for m in fixture['methods'])
 assert any(m['selector']=='classValue' and m['classMethod'] for m in fixture['methods'])
 assert all(m['provenance']=='Runtime Loaded' for m in fixture['methods'])
-print('Launch/capture/return PASS: real Analyze UI action -> selected Agent auto-auth -> runtime instance/class methods persisted -> URL return -> saved results visible; standard OS paste permission interaction, no manual token entry')
+print('Launch/capture/return PASS: real Analyze UI action -> selected Agent local capture -> authenticated JSON foreground return -> runtime instance/class methods persisted -> saved results visible; standard OS paste permission interaction, no manual token entry')
 PY
 cp "$container/Documents/launch-analysis-test.json" artifacts/simulator/launch-analysis-test.json
 xcrun simctl io "$udid" screenshot artifacts/simulator/captured-runtime.png

@@ -36,6 +36,8 @@ int main(void) { @autoreleasepool {
   for(NSDictionary *record in page[@"records"]) if([record[@"kind"] isEqual:@"method"] && [record[@"data"][@"class"] isEqual:@"LXFixture"]) { if([record[@"data"][@"selector"] isEqual:@"addOne:"]) capturedInstance=YES;if([record[@"data"][@"selector"] isEqual:@"classValue"] && [record[@"data"][@"classMethod"] boolValue]) capturedClass=YES; }
   cursor=[page[@"next"] unsignedIntegerValue];if(cursor>=[page[@"total"] unsignedIntegerValue]) break;
  }while(YES);assert(capturedInstance && capturedClass);assert([capture page:@"stale" offset:0][@"error"]);
+ NSDictionary *snapshot=[capture snapshot:metadata bundle:@"jp.league.runtimeatlas.fixture" request:NSUUID.UUID.UUIDString pid:@1];assert(snapshot && !LXRuntimeCatalogReason(snapshot));
+ BOOL snapshotInstance=NO,snapshotClass=NO;for(NSDictionary *i in snapshot[@"images"]) for(NSDictionary *c in i[@"classes"]) if([c[@"name"] isEqual:@"LXFixture"]) for(NSDictionary *m in c[@"methods"]) { if([m[@"selector"] isEqual:@"addOne:"]) snapshotInstance=YES;if([m[@"selector"] isEqual:@"classValue"] && [m[@"classMethod"] boolValue]) snapshotClass=YES; }assert(snapshotInstance && snapshotClass);
  metadata=[capture capture:[LXEmptyScanner new] bundlePath:@"/nonexistent"];assert([metadata[@"methodCount"] intValue]==0 && [metadata[@"partial"] boolValue] && [metadata[@"errors"][0][@"code"] isEqual:@"no_objc_methods"]);
  NSDictionary *staticResult=[[LXStaticAnalyzer new] analyzeBundle:@(image).stringByDeletingLastPathComponent];assert([staticResult[@"provenance"] isEqual:@"Static Only"]);assert([staticResult[@"images"] count]>0);
  assert([[[LXStaticAnalyzer new] analyzeBundle:@"/nonexistent-runtimeatlas-test-bundle"][@"errors"] count]>0);
