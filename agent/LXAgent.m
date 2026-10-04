@@ -96,7 +96,7 @@
   if(!success) { UIViewController *view=[self presenter];if(!view || view.presentedViewController) return;UIAlertController *alert=[UIAlertController alertControllerWithTitle:@"Atlas analysis finished" message:@"Switch back to Runtime Atlas to view the result." preferredStyle:UIAlertControllerStyleAlert];[alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];[view presentViewController:alert animated:YES completion:nil]; }
  }]; });
 }
-- (NSDictionary *)identity { return @{@"pid":@(getpid()),@"bundle":NSBundle.mainBundle.bundleIdentifier ?: @"unknown",@"executable":NSBundle.mainBundle.executablePath ?: @"",@"bundlePath":NSBundle.mainBundle.bundlePath,@"active":@(_active),@"analysisRequestID":_analysisRequestID ?: @""}; }
+- (NSDictionary *)identity { return @{@"pid":@(getpid()),@"bundle":NSBundle.mainBundle.bundleIdentifier ?: @"unknown",@"executable":NSBundle.mainBundle.executablePath ?: @"",@"bundlePath":NSBundle.mainBundle.bundlePath,@"active":@(_active),@"analysisRequestID":_analysisRequestID ?: @"",@"agentRelease":@"0.2.0"}; }
 #if LX_FIXTURE_AUTOMATION
 - (void)connectFixtureTestToken:(NSString *)token { dispatch_async(_queue,^{ self->_token=token;[self connect]; }); }
 #endif

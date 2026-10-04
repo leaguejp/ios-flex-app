@@ -18,7 +18,7 @@
 }
 - (void)applicationDidEnterBackground:(UIApplication *)application {
  if(_background!=UIBackgroundTaskInvalid) [application endBackgroundTask:_background];
- _background=[application beginBackgroundTaskWithName:@"RuntimeAtlas pairing grace" expirationHandler:^{ [self->_controller cancelAnalysis:@"iOS ended the background analysis window. Retry a narrower app capture; prior results are retained."];if(self->_background!=UIBackgroundTaskInvalid) { [application endBackgroundTask:self->_background];self->_background=UIBackgroundTaskInvalid; } }];
+ _background=[application beginBackgroundTaskWithName:@"RuntimeAtlas pairing grace" expirationHandler:^{ [self->_controller cancelAnalysis:@"iOS ended the background analysis window. Retry analysis; prior results are retained."];if(self->_background!=UIBackgroundTaskInvalid) { [application endBackgroundTask:self->_background];self->_background=UIBackgroundTaskInvalid; } }];
 }
 - (void)applicationWillEnterForeground:(UIApplication *)application { [self reloadApplications];dispatch_async(dispatch_get_main_queue(),^{ [self showAnalysisIfReady]; }); if(_background!=UIBackgroundTaskInvalid) { [application endBackgroundTask:_background];_background=UIBackgroundTaskInvalid; } }
 - (void)applicationDidBecomeActive:(UIApplication *)application { (void)application;[self showAnalysisIfReady];

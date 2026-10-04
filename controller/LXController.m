@@ -13,7 +13,7 @@
  if([_analysis[@"status"] isEqual:@"waiting"] || [_analysis[@"status"] isEqual:@"capturing"]) return nil;
  NSString *identifier=NSUUID.UUID.UUIDString;_analysis=[@{@"bundle":bundle,@"requestID":identifier,@"status":@"waiting",@"detail":@"Waiting for target Agent. If nothing appears, return to Atlas and check tweak injection."} mutableCopy];
  if(self.changed) self.changed();
- dispatch_after(dispatch_time(DISPATCH_TIME_NOW,25*NSEC_PER_SEC),dispatch_get_main_queue(),^{ if([self->_analysis[@"requestID"] isEqual:identifier] && [@[@"waiting",@"capturing"] containsObject:self->_analysis[@"status"]]) [self cancelAnalysis:@"Analysis did not complete within the background window. Check Agent injection/paste permission, then retry. Captured methods were not replaced with an empty success result."]; });
+ dispatch_after(dispatch_time(DISPATCH_TIME_NOW,25*NSEC_PER_SEC),dispatch_get_main_queue(),^{ if([self->_analysis[@"requestID"] isEqual:identifier] && [@[@"waiting",@"capturing"] containsObject:self->_analysis[@"status"]]) [self cancelAnalysis:@"Analysis did not complete within the background window. After updating, restart the target to load the new Agent. Check injection/paste permission, then retry. Captured methods were not replaced with an empty success result."]; });
  return LXAnalysisTicket(bundle,self.token,identifier);
 }
 - (void)cancelAnalysis:(NSString *)reason { if(!_analysis) return;if(![@[@"waiting",@"capturing"] containsObject:_analysis[@"status"]]) return;_analysis[@"status"]=@"failed";_analysis[@"detail"]=reason;_catalogImages=nil;_catalogClasses=nil;if(self.changed) self.changed(); }
