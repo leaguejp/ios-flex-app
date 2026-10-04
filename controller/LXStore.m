@@ -8,6 +8,7 @@ static NSDictionary *LXStoredState(id value) {
  NSMutableDictionary *state=[value mutableCopy];
  NSDictionary *expected=@{@"history":NSArray.class,@"logs":NSArray.class,@"desiredHooks":NSDictionary.class,@"patches":NSDictionary.class,@"identity":NSDictionary.class,@"hookState":NSDictionary.class,@"updatedAt":NSNumber.class,@"applyOnLaunch":NSNumber.class,@"autoRestoreHooks":NSNumber.class};
  for(NSString *key in expected) if(state[key] && ![state[key] isKindOfClass:expected[key]]) [state removeObjectForKey:key];
+ if(state[@"runtimeCatalog"] && LXRuntimeCatalogReason(state[@"runtimeCatalog"])) [state removeObjectForKey:@"runtimeCatalog"];
  NSMutableArray *history=[NSMutableArray new];NSArray *old=state[@"history"] ?: @[];
  for(NSUInteger i=old.count>8?old.count-8:0;i<old.count;i++) {
   id item=old[i];if([item isKindOfClass:NSDictionary.class] && [item[@"command"] isKindOfClass:NSString.class] && [item[@"response"] isKindOfClass:NSDictionary.class] && [item[@"time"] isKindOfClass:NSNumber.class]) [history addObject:item];

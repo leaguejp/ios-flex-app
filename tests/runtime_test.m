@@ -3,6 +3,8 @@
 #import "../testtarget/LXFixture.h"
 #import "../hook/LXHookEngine.h"
 #import "../runtime/LXScanner.h"
+#import "../runtime/LXCatalog.h"
+#import "../shared/LXProtocol.h"
 #import "../shared/LXTypes.h"
 #import "../static/LXStaticAnalyzer.h"
 #include <assert.h>
@@ -10,6 +12,12 @@
 #include <limits.h>
 #include <pthread.h>
 #include <dlfcn.h>
+@interface LXEmptyScanner : LXScanner
+@end
+@implementation LXEmptyScanner
+- (NSDictionary *)images { return @{@"images":@[]}; }
+- (NSDictionary *)classesInImage:(NSString *)image offset:(NSUInteger)offset { (void)image;(void)offset;return @{@"classes":@[],@"total":@0,@"next":@0}; }
+@end
 static long long LXForeign(id self,SEL cmd,long long value) { (void)self;(void)cmd;return value+99; }
 static void *LXNoPoolThread(void *context) { LXFixture *fixture=(__bridge LXFixture *)context;for(int i=0;i<1500;i++) assert([fixture addOne:i]==i+1);return NULL; }
 int main(void) { @autoreleasepool {
@@ -22,6 +30,13 @@ int main(void) { @autoreleasepool {
  NSDictionary *classes=[scanner classesInImage:@(image) offset:0];assert([classes[@"total"] unsignedIntegerValue]>0);
  Class generated=objc_allocateClassPair(NSObject.class,"LXRuntimeGeneratedFixture",0);assert(generated);objc_registerClassPair(generated);assert(!class_getImageName(generated));BOOL foundGenerated=NO;
  for(NSDictionary *record in [scanner classesInImage:@"runtime://generated" offset:0][@"classes"]) if([record[@"name"] isEqual:@"LXRuntimeGeneratedFixture"]) { foundGenerated=YES;assert([record[@"image"] isEqual:@""] && [record[@"source"] isEqual:@"Runtime Generated"]); }assert(foundGenerated);objc_disposeClassPair(generated);
+ LXCatalog *capture=[LXCatalog new];NSDictionary *metadata=[capture capture:scanner bundlePath:@(image).stringByDeletingLastPathComponent];assert([metadata[@"methodCount"] unsignedIntegerValue]>=9);assert(!LXResultReason(@"catalogStart",metadata,@{}));
+ NSUInteger cursor=0;BOOL capturedInstance=NO,capturedClass=NO;
+ do { NSDictionary *page=[capture page:metadata[@"captureID"] offset:cursor];assert((!LXResultReason(@"catalogPage",page,@{@"captureID":metadata[@"captureID"],@"offset":@(cursor)})));
+  for(NSDictionary *record in page[@"records"]) if([record[@"kind"] isEqual:@"method"] && [record[@"data"][@"class"] isEqual:@"LXFixture"]) { if([record[@"data"][@"selector"] isEqual:@"addOne:"]) capturedInstance=YES;if([record[@"data"][@"selector"] isEqual:@"classValue"] && [record[@"data"][@"classMethod"] boolValue]) capturedClass=YES; }
+  cursor=[page[@"next"] unsignedIntegerValue];if(cursor>=[page[@"total"] unsignedIntegerValue]) break;
+ }while(YES);assert(capturedInstance && capturedClass);assert([capture page:@"stale" offset:0][@"error"]);
+ metadata=[capture capture:[LXEmptyScanner new] bundlePath:@"/nonexistent"];assert([metadata[@"methodCount"] intValue]==0 && [metadata[@"partial"] boolValue] && [metadata[@"errors"][0][@"code"] isEqual:@"no_objc_methods"]);
  NSDictionary *staticResult=[[LXStaticAnalyzer new] analyzeBundle:@(image).stringByDeletingLastPathComponent];assert([staticResult[@"provenance"] isEqual:@"Static Only"]);assert([staticResult[@"images"] count]>0);
  assert([[[LXStaticAnalyzer new] analyzeBundle:@"/nonexistent-runtimeatlas-test-bundle"][@"errors"] count]>0);
  NSURL *temporary=[NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:NSUUID.UUID.UUIDString] isDirectory:YES];assert([NSFileManager.defaultManager createDirectoryAtURL:temporary withIntermediateDirectories:YES attributes:nil error:nil]);
@@ -78,5 +93,5 @@ int main(void) { @autoreleasepool {
  Method m=class_getInstanceMethod(LXFixture.class,@selector(addOne:));IMP old=method_setImplementation(m,(IMP)LXForeign);
  assert([engine disableKey:@"-LXFixture/addOne:"][@"error"]);assert(method_getImplementation(m)==(IMP)LXForeign);
  assert([f addOne:1]==100);method_setImplementation(m,[original[@"addOne:"] pointerValue]);(void)old;[engine disableAll];
- puts("runtime: scanner, 7 reviewed signatures, originals, arguments/return logs, restore, duplicate, unsupported, scalar patches/original exceptions, no-pool pthread logging, image unload invalidation and conflict tests passed");
+ puts("runtime: paged runtime catalog, empty-capture diagnostics, scanner, 7 reviewed signatures, originals, arguments/return logs, restore, duplicate, unsupported, scalar patches/original exceptions, no-pool pthread logging, image unload invalidation and conflict tests passed");
  }return 0; }

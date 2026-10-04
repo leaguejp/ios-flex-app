@@ -4,9 +4,12 @@
 #import "../shared/LXProtocol.h"
 #import "../shared/LXAuth.h"
 #import "../runtime/LXScanner.h"
+#import "../runtime/LXCatalog.h"
+#import "../shared/LXLaunch.h"
 #import "../static/LXStaticAnalyzer.h"
 #import "../hook/LXHookEngine.h"
 #include <unistd.h>
+#include <math.h>
 #import <objc/runtime.h>
 #if LX_FIXTURE_AUTOMATION
 #import "../testtarget/LXFixture.h"
@@ -14,7 +17,7 @@
 @implementation LXAgent {
  LXChannel *_channel;LXScanner *_scanner;LXHookEngine *_hooks;LXStaticAnalyzer *_static;
  dispatch_queue_t _queue;dispatch_source_t _heartbeat;BOOL _active;BOOL _connecting;BOOL _authenticated;BOOL _serverVerified;NSString *_token;NSString *_nonce;
- NSMutableSet *_seenCommands;NSMutableArray *_commandOrder;NSMutableDictionary *_methodProfiles;NSMutableDictionary *_savedPatches;BOOL _launchPatches;NSArray *_restoreErrors;
+ NSMutableSet *_seenCommands;NSMutableArray *_commandOrder;NSMutableDictionary *_methodProfiles;NSMutableDictionary *_savedPatches;BOOL _launchPatches;NSArray *_restoreErrors;LXCatalog *_catalog;NSString *_analysisRequestID;NSMutableSet *_launchRequests;
 }
 + (instancetype)shared { static LXAgent *agent;static dispatch_once_t once;dispatch_once(&once,^{ agent=[LXAgent new]; });return agent; }
 - (instancetype)init { if((self=[super init])) { _queue=dispatch_queue_create("jp.league.runtimeatlas.agent",DISPATCH_QUEUE_SERIAL);_seenCommands=[NSMutableSet new];_commandOrder=[NSMutableArray new];_methodProfiles=[NSMutableDictionary new];_savedPatches=[NSMutableDictionary new];dispatch_async(_queue,^{ [self restoreLaunchPatches]; }); }return self; }
@@ -76,14 +79,31 @@
   dispatch_async(self->_queue,^{ if(self->_channel) [self disconnect:self->_channel];self->_token=token;[self connect]; });
  }]];[presenter presentViewController:alert animated:YES completion:nil];
 }
-- (NSDictionary *)identity { return @{@"pid":@(getpid()),@"bundle":NSBundle.mainBundle.bundleIdentifier ?: @"unknown",@"executable":NSBundle.mainBundle.executablePath ?: @"",@"bundlePath":NSBundle.mainBundle.bundlePath,@"active":@(_active)}; }
+- (void)checkAnalysisLaunch {
+ // Called only on foreground activation. A short-lived, selected-bundle ticket is
+ // written by an explicit Analyze action; unrelated pasteboard contents are ignored.
+ NSString *type=LXAnalysisPasteboardType(NSBundle.mainBundle.bundleIdentifier);if(![UIPasteboard.generalPasteboard containsPasteboardTypes:@[type]]) return;NSData *data=[UIPasteboard.generalPasteboard dataForPasteboardType:type];if(data.length>2048) return;
+ NSDictionary *ticket=LXReadAnalysisTicket([[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding],NSBundle.mainBundle.bundleIdentifier,NSDate.date.timeIntervalSince1970);if(!ticket) return;
+ dispatch_async(_queue,^{
+  if(!self->_launchRequests) self->_launchRequests=[NSMutableSet new];NSString *request=ticket[@"requestID"];if([self->_launchRequests containsObject:request]) return;
+  if(self->_launchRequests.count>=32) [self->_launchRequests removeAllObjects];[self->_launchRequests addObject:request];
+  if(self->_channel) [self disconnect:self->_channel];self->_analysisRequestID=request;self->_token=ticket[@"token"];[self connect];
+ });
+}
+- (void)returnToAtlas:(NSString *)request {
+ NSURL *url=LXAnalysisReturnURL(request);if(!url) return;
+ dispatch_async(dispatch_get_main_queue(),^{ [UIApplication.sharedApplication openURL:url options:@{} completionHandler:^(BOOL success) {
+  if(!success) { UIViewController *view=[self presenter];if(!view || view.presentedViewController) return;UIAlertController *alert=[UIAlertController alertControllerWithTitle:@"Atlas analysis finished" message:@"Switch back to Runtime Atlas to view the result." preferredStyle:UIAlertControllerStyleAlert];[alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];[view presentViewController:alert animated:YES completion:nil]; }
+ }]; });
+}
+- (NSDictionary *)identity { return @{@"pid":@(getpid()),@"bundle":NSBundle.mainBundle.bundleIdentifier ?: @"unknown",@"executable":NSBundle.mainBundle.executablePath ?: @"",@"bundlePath":NSBundle.mainBundle.bundlePath,@"active":@(_active),@"analysisRequestID":_analysisRequestID ?: @""}; }
 #if LX_FIXTURE_AUTOMATION
 - (void)connectFixtureTestToken:(NSString *)token { dispatch_async(_queue,^{ self->_token=token;[self connect]; }); }
 #endif
 - (void)connect {
  if(_connecting || (_channel && !_channel.closed)) return;_connecting=YES;
  NSError *error=nil;LXChannel *channel=[LXChannel connectLoopback:&error];_connecting=NO;
- if(!channel) { _token=nil;dispatch_async(dispatch_get_main_queue(),^{
+ if(!channel) { _token=nil;if(_analysisRequestID) [self returnToAtlas:_analysisRequestID];dispatch_async(dispatch_get_main_queue(),^{
   UIViewController *presenter=[self presenter];if(!presenter || presenter.presentedViewController) return;
   UIAlertController *alert=[UIAlertController alertControllerWithTitle:@"Runtime Atlas connection failed" message:error.localizedDescription ?: @"Open Controller and pair again" preferredStyle:UIAlertControllerStyleAlert];[alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];[presenter presentViewController:alert animated:YES completion:nil];
  });return; }_channel=channel;
@@ -116,12 +136,15 @@
  else {
   [_seenCommands addObject:identifier];[_commandOrder addObject:identifier];if(_commandOrder.count>256) { [_seenCommands removeObject:_commandOrder[0]];[_commandOrder removeObjectAtIndex:0]; }
   @try {
-   if(_active && [@[@"images",@"classes",@"methods"] containsObject:command] && !_scanner) _scanner=[LXScanner new];
+   if(_active && [@[@"images",@"classes",@"methods",@"catalogStart"] containsObject:command] && !_scanner) _scanner=[LXScanner new];
    if(_active && [command isEqual:@"static"] && !_static) _static=[LXStaticAnalyzer new];
    if([command isEqual:@"activate"]) { _active=YES;if(!_scanner) _scanner=[LXScanner new];if(!_hooks) _hooks=[LXHookEngine new];if(!_static) _static=[LXStaticAnalyzer new];out=[self identity]; }
    else if([command isEqual:@"deactivate"]) { _active=NO;_launchPatches=NO;[self saveLaunchPatches];[_hooks disableAll];out=[self identity]; }
    else if([command isEqual:@"ping"]) out=@{@"echo":p,@"sandboxProbe":@YES};
    else if(!_active) out=@{@"error":LXError(@"inactive",@"Activate this Agent explicitly first")};
+   else if([command isEqual:@"catalogStart"]) { _catalog=[LXCatalog new];out=[_catalog capture:_scanner bundlePath:NSBundle.mainBundle.bundlePath]; }
+   else if([command isEqual:@"catalogPage"] && [p[@"captureID"] isKindOfClass:NSString.class] && [p[@"offset"] isKindOfClass:NSNumber.class] && [p[@"offset"] doubleValue]>=0 && floor([p[@"offset"] doubleValue])==[p[@"offset"] doubleValue]) out=_catalog?[_catalog page:p[@"captureID"] offset:[p[@"offset"] unsignedIntegerValue]]:@{@"error":LXError(@"capture_missing",@"Start capture first")};
+   else if([command isEqual:@"analysisReturn"] && _analysisRequestID && [p[@"requestID"] isEqual:_analysisRequestID]) { out=@{@"returning":@YES};dispatch_after(dispatch_time(DISPATCH_TIME_NOW,NSEC_PER_SEC/4),self->_queue,^{ [self returnToAtlas:p[@"requestID"]]; }); }
    else if([command isEqual:@"images"]) out=[_scanner images];
    else if([command isEqual:@"classes"] && [p[@"image"] isKindOfClass:NSString.class] && [p[@"offset"] isKindOfClass:NSNumber.class] && [p[@"offset"] longLongValue]>=0) out=[_scanner classesInImage:p[@"image"] offset:[p[@"offset"] unsignedIntegerValue]];
    else if([command isEqual:@"methods"] && [p[@"class"] isKindOfClass:NSString.class] && (!p[@"offset"] || ([p[@"offset"] isKindOfClass:NSNumber.class] && [p[@"offset"] longLongValue]>=0))) out=[_scanner methodsInClass:p[@"class"] offset:[p[@"offset"] unsignedIntegerValue]];

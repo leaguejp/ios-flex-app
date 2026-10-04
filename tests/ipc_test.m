@@ -2,11 +2,14 @@
 #import "../shared/LXChannel.h"
 #import "../shared/LXProtocol.h"
 #import "../shared/LXAuth.h"
+#import "../shared/LXLaunch.h"
 #include <assert.h>
 int main(int argc,char **argv) { @autoreleasepool {
  assert(!LXValidate(@{}));NSMutableDictionary *bad=[LXMessage(@"ping",@{}) mutableCopy];bad[@"version"]=@999;assert(!LXValidate(bad));
  bad[@"version"]=@1.5;assert(!LXValidate(bad));bad[@"version"]=@1;bad[@"pid"]=@1.5;assert(!LXValidate(bad));
  NSString *token=LXNewToken();assert(token.length==32);NSDictionary *body=@{@"nonce":@"abc"};NSString *proof=LXProof(token,@"client",body);assert(LXProofMatches(proof,proof));assert(!LXProofMatches(proof,LXProof(token,@"server",body)));assert(!LXProofMatches(proof,LXProof(LXNewToken(),@"client",body)));assert(!LXProofMatches(proof,@"invalid"));
+ NSString *request=NSUUID.UUID.UUIDString;NSString *ticket=LXAnalysisTicket(@"jp.league.runtimeatlas.fixture",token,request);NSTimeInterval now=NSDate.date.timeIntervalSince1970;
+ assert([LXReadAnalysisTicket(ticket,@"jp.league.runtimeatlas.fixture",now)[@"requestID"] isEqual:request]);assert(!LXReadAnalysisTicket(ticket,@"other.bundle",now));assert(!LXReadAnalysisTicket(ticket,@"jp.league.runtimeatlas.fixture",now+91));assert(!LXReadAnalysisTicket(@"invalid",@"jp.league.runtimeatlas.fixture",now));assert(LXAnalysisReturnURL(request));assert(!LXAnalysisReturnURL(@"bad"));assert(![LXAnalysisPasteboardType(@"first") isEqual:LXAnalysisPasteboardType(@"second")]);
  bad=[LXMessage(@"ping",@{}) mutableCopy];bad[@"namespace"]=@"another.app";assert(!LXValidate(bad));
  dispatch_semaphore_t done=dispatch_semaphore_create(0);
  if(argc>1 && !strcmp(argv[1],"peer")) {

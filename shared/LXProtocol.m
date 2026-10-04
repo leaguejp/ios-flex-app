@@ -27,6 +27,24 @@ static BOOL LXFields(NSDictionary *record,NSArray *strings,NSArray *numbers) {
 NSString *LXResultReason(NSString *command,NSDictionary *payload,NSDictionary *request) {
  if(![payload isKindOfClass:NSDictionary.class]) return @"Response payload must be a dictionary";
  NSString *collection=nil;NSArray *strings=@[],*numbers=@[];NSUInteger cap=65536;
+ if([command isEqual:@"catalogStart"]) {
+  if(!LXFields(payload,@[@"captureID",@"scope",@"provenance"],@[@"total",@"imageCount",@"classCount",@"methodCount",@"capturedAt",@"partial"]) || ![payload[@"provenance"] isEqual:@"Runtime Loaded"] || ![payload[@"errors"] isKindOfClass:NSArray.class]) return @"Malformed capture metadata";
+  for(NSString *key in @[@"total",@"imageCount",@"classCount",@"methodCount"]) { double n=[payload[key] doubleValue];if(n<0 || n>50000 || floor(n)!=n) return @"Invalid capture count"; }
+  for(id error in payload[@"errors"]) if(!LXFields(error,@[@"code",@"detail"],@[])) return @"Malformed capture error";return nil;
+ }
+ if([command isEqual:@"analysisReturn"]) return LXFields(payload,@[],@[@"returning"])?nil:@"Malformed return acknowledgment";
+ if([command isEqual:@"catalogPage"]) {
+  if(!LXFields(payload,@[@"captureID"],@[@"next",@"total"]) || ![payload[@"captureID"] isEqual:request[@"captureID"]] || ![payload[@"records"] isKindOfClass:NSArray.class] || [payload[@"records"] count]>100) return @"Malformed capture page";
+  double next=[payload[@"next"] doubleValue],total=[payload[@"total"] doubleValue],offset=[request[@"offset"] doubleValue];
+  if(next<0 || total<0 || total>50000 || floor(next)!=next || floor(total)!=total || next>total || next!=offset+[payload[@"records"] count] || (next<total && next<=offset)) return @"Capture pagination does not advance";
+  for(id item in payload[@"records"]) {
+   if(!LXFields(item,@[@"kind"],@[]) || ![item[@"data"] isKindOfClass:NSDictionary.class]) return @"Malformed capture record";
+   NSString *kind=item[@"kind"],*cmd=[kind isEqual:@"image"]?@"images":[kind isEqual:@"class"]?@"classes":[kind isEqual:@"method"]?@"methods":nil;
+   if(!cmd) return @"Unknown capture record kind";
+   if([kind isEqual:@"method"] && ![item[@"data"][@"image"] isKindOfClass:NSString.class]) return @"Missing captured method image";
+   NSString *reason=LXResultReason(cmd,@{cmd:@[item[@"data"]],@"next":@1,@"total":@1},@{@"offset":@0});if(reason) return reason;
+  }return nil;
+ }
  if([command isEqual:@"images"] || [command isEqual:@"static"]) {
   collection=@"images";strings=@[@"name",@"path",@"provenance"];
   if([command isEqual:@"static"]) { cap=256;if(![payload[@"errors"] isKindOfClass:NSArray.class]) return @"Static errors must be an array";for(id error in payload[@"errors"]) if(![error isKindOfClass:NSDictionary.class]) return @"Malformed static error"; }
@@ -63,4 +81,20 @@ NSString *LXResultReason(NSString *command,NSDictionary *payload,NSDictionary *r
   if(next<0 || total<0 || floor(next)!=next || floor(total)!=total || next>total || (next<total && next<=offset)) return @"Pagination does not advance";
  }
  return nil;
+}
+
+NSString *LXRuntimeCatalogReason(NSDictionary *catalog) {
+ if(!LXFields(catalog,@[@"bundle",@"requestID"],@[@"pid"]) || ![catalog[@"images"] isKindOfClass:NSArray.class] || [catalog[@"images"] count]>1024 || ![catalog[@"metadata"] isKindOfClass:NSDictionary.class]) return @"Malformed saved runtime catalog";
+ NSString *reason=LXResultReason(@"catalogStart",catalog[@"metadata"],@{});if(reason) return reason;NSUInteger count=0,classCount=0,methodCount=0;
+ for(id image in catalog[@"images"]) {
+  reason=LXResultReason(@"images",@{@"images":@[image]},@{});if(reason) return reason;
+  if(![image[@"classes"] isKindOfClass:NSArray.class]) return @"Missing captured classes";
+  for(id cls in image[@"classes"]) {
+   classCount++;if(++count>50000) return @"Saved capture exceeds record limit";
+   reason=LXResultReason(@"classes",@{@"classes":@[cls],@"next":@1,@"total":@1},@{@"offset":@0});if(reason) return reason;
+   if(![cls[@"methods"] isKindOfClass:NSArray.class]) return @"Missing captured methods";
+   for(id method in cls[@"methods"]) { methodCount++;if(++count>50000) return @"Saved capture exceeds record limit";reason=LXResultReason(@"methods",@{@"methods":@[method],@"next":@1,@"total":@1},@{@"offset":@0});if(reason) return reason; }
+  }
+ }
+ NSDictionary *metadata=catalog[@"metadata"];if([metadata[@"imageCount"] unsignedIntegerValue]!=[catalog[@"images"] count] || [metadata[@"classCount"] unsignedIntegerValue]!=classCount || [metadata[@"methodCount"] unsignedIntegerValue]!=methodCount || [metadata[@"total"] unsignedIntegerValue]!=[catalog[@"images"] count]+count) return @"Captured counts disagree with saved records";return nil;
 }

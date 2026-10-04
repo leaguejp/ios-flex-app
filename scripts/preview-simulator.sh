@@ -9,12 +9,12 @@ sdk=$(xcrun --sdk iphonesimulator --show-sdk-path)
 arch=$(uname -m)
 app=build/controller-simulator/RuntimeAtlas.app
 xcrun --sdk iphonesimulator clang -target "$arch-apple-ios15.0-simulator" -isysroot "$sdk" -std=c11 -Wall -Wextra -Werror -c core/macho.c -o build/controller-simulator/macho.o
-xcrun --sdk iphonesimulator clang -target "$arch-apple-ios15.0-simulator" -isysroot "$sdk" -fobjc-arc -fblocks -DLX_CONTROLLER_AUTOMATION=1 -Wall -Wextra -Werror controller/App.m controller/LXApplications.m controller/LXController.m controller/LXStore.m static/LXStaticAnalyzer.m shared/LXTypes.m core/encoding.c build/controller-simulator/macho.o ui/LXBrowser.m shared/LXProtocol.m shared/LXChannel.m shared/LXAuth.m -framework UIKit -framework Foundation -o "$app/RuntimeAtlas"
+xcrun --sdk iphonesimulator clang -target "$arch-apple-ios15.0-simulator" -isysroot "$sdk" -fobjc-arc -fblocks -DLX_CONTROLLER_AUTOMATION=1 -Wall -Wextra -Werror controller/App.m controller/LXApplications.m controller/LXController.m controller/LXStore.m static/LXStaticAnalyzer.m shared/LXTypes.m core/encoding.c build/controller-simulator/macho.o ui/LXBrowser.m shared/LXProtocol.m shared/LXChannel.m shared/LXAuth.m shared/LXLaunch.m -framework UIKit -framework Foundation -o "$app/RuntimeAtlas"
 cp controller/Resources/* "$app/"
 codesign --force --sign - "$app"
 xcrun simctl install "$udid" "$app"
 xcrun simctl install "$udid" build/fixture-iphonesimulator/AtlasTestTarget.app
-clang -fobjc-arc -fblocks -Wall -Wextra -Werror tests/simulator_integration.m shared/LXTypes.m core/encoding.c controller/LXController.m controller/LXStore.m shared/LXChannel.m shared/LXProtocol.m shared/LXAuth.m -framework Foundation -o build/simulator-integration
+clang -fobjc-arc -fblocks -Wall -Wextra -Werror tests/simulator_integration.m shared/LXTypes.m core/encoding.c controller/LXController.m controller/LXStore.m shared/LXChannel.m shared/LXProtocol.m shared/LXAuth.m shared/LXLaunch.m -framework Foundation -o build/simulator-integration
 LX_SIMULATOR_UDID="$udid" build/simulator-integration | tee artifacts/simulator/integration.txt
 xcrun simctl terminate "$udid" jp.league.runtimeatlas.fixture
 # Same source, distinct application bundle: verifies UIKit support is not fixture-gated.
@@ -47,4 +47,31 @@ xcrun simctl io "$udid" screenshot artifacts/simulator/controller.png
 xcrun simctl launch "$udid" jp.league.runtimeatlas.fixture
 sleep 3
 xcrun simctl io "$udid" screenshot artifacts/simulator/fixture.png
+# Exercise actual Controller UIApplication -> selected target Agent -> custom URL return.
+xcrun simctl terminate "$udid" jp.league.runtimeatlas.controller
+xcrun simctl launch "$udid" jp.league.runtimeatlas.controller --lx-test-launch-analysis
+sleep 1
+# Also covers the manual Home Screen fallback if private LaunchServices launch is unavailable.
+xcrun simctl launch "$udid" jp.league.runtimeatlas.fixture
+python3 - "$container/Documents/launch-analysis-test.json" <<'PY'
+import json,sys,time
+from pathlib import Path
+file=Path(sys.argv[1]);deadline=time.monotonic()+35
+while time.monotonic()<deadline:
+    if file.exists():
+        result=json.loads(file.read_text())
+        if result['analysis']['status']=='failed': raise AssertionError(result['analysis'])
+        if result['returned'] and result['foreground'] and result['visibleTitle']=='Captured Runtime Loaded': break
+    time.sleep(.2)
+else: raise AssertionError('Launch/capture/return did not complete')
+assert result['analysis']['status']=='complete'
+assert result['catalog']['metadata']['methodCount']>0
+fixture=next(c for i in result['catalog']['images'] for c in i['classes'] if c['name']=='LXFixture')
+assert any(m['selector']=='addOne:' and m['encoding'] and not m['classMethod'] for m in fixture['methods'])
+assert any(m['selector']=='classValue' and m['classMethod'] for m in fixture['methods'])
+assert all(m['provenance']=='Runtime Loaded' for m in fixture['methods'])
+print('Launch/capture/return PASS: production Controller foreground -> selected Agent auto-auth -> runtime instance/class methods persisted -> URL return -> saved results visible; no manual token entry')
+PY
+cp "$container/Documents/launch-analysis-test.json" artifacts/simulator/launch-analysis-test.json
+xcrun simctl io "$udid" screenshot artifacts/simulator/captured-runtime.png
 xcrun simctl shutdown "$udid"

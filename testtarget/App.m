@@ -22,6 +22,9 @@
 #endif
  return YES;
 }
+#if LX_FIXTURE_AUTOMATION
+- (void)applicationDidBecomeActive:(UIApplication *)application { (void)application;[[LXAgent shared] checkAnalysisLaunch]; }
+#endif
 - (void)pair {
  Class cls=NSClassFromString(@"LXAgent");SEL shared=NSSelectorFromString(@"shared"),pair=NSSelectorFromString(@"pairFromController:");
  if(!cls) { _text.text=@"Agent not loaded. Enable TestTarget tweak injection in jailbreak settings, then relaunch.";return; }

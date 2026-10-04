@@ -33,7 +33,14 @@ static void LXImagesChanged(const struct mach_header *header,intptr_t slide) { (
   unsigned count=0;const char **names=objc_copyClassNamesForImage(image.UTF8String,&count);NSMutableArray *out=[NSMutableArray new];
   for(unsigned i=0;i<count;i++) { Class cls=objc_getClass(names[i]);Class parent=class_getSuperclass(cls);
    [out addObject:@{@"name":@(names[i]),@"superclass":parent?@(class_getName(parent)):@"",@"image":image,@"provenance":@"Runtime Loaded"}]; }
-  free(names);cached=[out sortedArrayUsingComparator:^NSComparisonResult(NSDictionary *a,NSDictionary *b) { return [a[@"name"] compare:b[@"name"]]; }];_classCache[image]=cached;
+  free(names);
+  if(!out.count) {
+   NSString *resolved=[image stringByResolvingSymlinksInPath];unsigned total=0;Class *classes=objc_copyClassList(&total);
+   for(unsigned i=0;i<total;i++) { const char *owner=class_getImageName(classes[i]);if(!owner || ![[@(owner) stringByResolvingSymlinksInPath] isEqual:resolved]) continue;Class parent=class_getSuperclass(classes[i]);
+    [out addObject:@{@"name":@(class_getName(classes[i])),@"superclass":parent?@(class_getName(parent)):@"",@"image":image,@"provenance":@"Runtime Loaded"}];
+   }free(classes);
+  }
+  cached=[out sortedArrayUsingComparator:^NSComparisonResult(NSDictionary *a,NSDictionary *b) { return [a[@"name"] compare:b[@"name"]]; }];_classCache[image]=cached;
  }
  NSUInteger begin=MIN(offset,cached.count),n=MIN((NSUInteger)200,cached.count-begin);
  return @{@"classes":[cached subarrayWithRange:NSMakeRange(begin,n)],@"total":@(cached.count),@"next":@(begin+n),@"generation":@(_generation)};

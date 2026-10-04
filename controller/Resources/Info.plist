@@ -1,12 +1,51 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-<key>CFBundleIdentifier</key><string>jp.league.runtimeatlas.controller</string>
-<key>CFBundleName</key><string>RuntimeAtlas</string><key>CFBundleDisplayName</key><string>Runtime Atlas</string>
-<key>CFBundleExecutable</key><string>RuntimeAtlas</string><key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleVersion</key><string>1</string><key>CFBundleShortVersionString</key><string>0.1.0</string>
-<key>MinimumOSVersion</key><string>15.0</string><key>LSRequiresIPhoneOS</key><true/>
-<key>UILaunchScreen</key><dict/><key>UIDeviceFamily</key><array><integer>1</integer></array>
-<key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string></array>
-<key>CFBundleIconFiles</key><array><string>Icon.png</string><string>Icon@2x.png</string><string>Icon@3x.png</string></array>
-</dict></plist>
+<plist version="1.0">
+<dict>
+	<key>CFBundleIdentifier</key>
+	<string>jp.league.runtimeatlas.controller</string>
+	<key>CFBundleName</key>
+	<string>RuntimeAtlas</string>
+	<key>CFBundleDisplayName</key>
+	<string>Runtime Atlas</string>
+	<key>CFBundleExecutable</key>
+	<string>RuntimeAtlas</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.0</string>
+	<key>MinimumOSVersion</key>
+	<string>15.0</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>UILaunchScreen</key>
+	<dict/>
+	<key>UIDeviceFamily</key>
+	<array>
+		<integer>1</integer>
+	</array>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+	<key>CFBundleIconFiles</key>
+	<array>
+		<string>Icon.png</string>
+		<string>Icon@2x.png</string>
+		<string>Icon@3x.png</string>
+	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>jp.league.runtimeatlas.analysis-return</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>runtimeatlas</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

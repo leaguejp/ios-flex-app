@@ -3,27 +3,82 @@
 #import "LXApplications.h"
 #import "../static/LXStaticAnalyzer.h"
 #import "../shared/LXTypes.h"
+#import "../shared/LXLaunch.h"
 #import "../ui/LXBrowser.h"
 @interface LXApp : UIResponder <UIApplicationDelegate>
 @property(nonatomic,strong) UIWindow *window;
 @end
-@implementation LXApp { LXController *_controller;LXBrowser *_root; UIBackgroundTaskIdentifier _background;NSArray *_installed;NSString *_inventoryFailure; }
+@implementation LXApp { LXController *_controller;LXBrowser *_root; UIBackgroundTaskIdentifier _background;NSArray *_installed;NSString *_inventoryFailure;NSString *_shownAnalysis;BOOL _analysisReturnReceived;BOOL _automationLaunchStarted; }
 - (BOOL)application:(UIApplication *)app didFinishLaunchingWithOptions:(NSDictionary *)options {
  (void)app;(void)options;_background=UIBackgroundTaskInvalid;_controller=[LXController new];_root=[LXBrowser new];_root.title=@"Runtime Atlas";
  self.window=[[UIWindow alloc] initWithFrame:UIScreen.mainScreen.bounds];self.window.rootViewController=[[UINavigationController alloc] initWithRootViewController:_root];[self.window makeKeyAndVisible];
  _root.navigationItem.rightBarButtonItem=[[UIBarButtonItem alloc] initWithTitle:@"Refresh" style:UIBarButtonItemStylePlain target:self action:@selector(reloadApplications)];
- __weak LXApp *weak=self;_controller.changed=^{ [weak refresh]; };_root.selected=^(NSDictionary *row) { if([row[@"action"] isEqual:@"manualPair"]) [weak pair];else if(row[@"session"]) [weak target:row[@"session"]];else [weak installedTarget:row[@"application"]]; };
+ __weak LXApp *weak=self;_controller.changed=^{ [weak refresh];[weak showAnalysisIfReady]; };_root.selected=^(NSDictionary *row) { if([row[@"action"] isEqual:@"manualPair"]) [weak pair];else if(row[@"application"]) [weak installedTarget:row[@"application"]];else [weak target:row[@"session"]]; };
  NSError *error=nil;if(![_controller start:&error]) dispatch_async(dispatch_get_main_queue(),^{ LXApp *strong=weak;if(strong) LXAlert(strong->_root,[NSString stringWithFormat:@"IPC listener failed: %@",error.localizedDescription]); });[self reloadApplications];return YES;
 }
 - (void)applicationDidEnterBackground:(UIApplication *)application {
  if(_background!=UIBackgroundTaskInvalid) [application endBackgroundTask:_background];
- _background=[application beginBackgroundTaskWithName:@"RuntimeAtlas pairing grace" expirationHandler:^{ if(self->_background!=UIBackgroundTaskInvalid) { [application endBackgroundTask:self->_background];self->_background=UIBackgroundTaskInvalid; } }];
+ _background=[application beginBackgroundTaskWithName:@"RuntimeAtlas pairing grace" expirationHandler:^{ [self->_controller cancelAnalysis:@"iOS ended the background analysis window. Retry a narrower app capture; prior results are retained."];if(self->_background!=UIBackgroundTaskInvalid) { [application endBackgroundTask:self->_background];self->_background=UIBackgroundTaskInvalid; } }];
 }
-- (void)applicationWillEnterForeground:(UIApplication *)application { [self reloadApplications]; if(_background!=UIBackgroundTaskInvalid) { [application endBackgroundTask:_background];_background=UIBackgroundTaskInvalid; } }
+- (void)applicationWillEnterForeground:(UIApplication *)application { [self reloadApplications];dispatch_async(dispatch_get_main_queue(),^{ [self showAnalysisIfReady]; }); if(_background!=UIBackgroundTaskInvalid) { [application endBackgroundTask:_background];_background=UIBackgroundTaskInvalid; } }
+- (void)applicationDidBecomeActive:(UIApplication *)application { (void)application;[self showAnalysisIfReady];
+#if LX_CONTROLLER_AUTOMATION
+ [self writeLaunchTest];
+#endif
+}
+- (BOOL)application:(UIApplication *)application openURL:(NSURL *)url options:(NSDictionary<UIApplicationOpenURLOptionsKey,id> *)options {
+ (void)application;(void)options;if(![url.scheme isEqual:@"runtimeatlas"] || ![url.host isEqual:@"analysis"]) return NO;
+ NSString *request=nil;for(NSURLQueryItem *item in [NSURLComponents componentsWithURL:url resolvingAgainstBaseURL:NO].queryItems) if([item.name isEqual:@"requestID"]) request=item.value;
+ if(![request isEqual:_controller.analysis[@"requestID"]]) return NO;_analysisReturnReceived=YES;[self showAnalysisIfReady];
+#if LX_CONTROLLER_AUTOMATION
+ [self writeLaunchTest];
+#endif
+ return YES;
+}
+- (void)startAnalysis:(NSDictionary *)application parent:(UIViewController *)parent {
+ _analysisReturnReceived=NO;NSString *ticket=[_controller prepareAnalysisForBundle:application[@"bundle"]];if(!ticket) { LXAlert(parent,@"An analysis is already running. Return after it finishes, or retry after the timeout.");return; }
+ [UIPasteboard.generalPasteboard setItems:@[@{LXAnalysisPasteboardType(application[@"bundle"]):[ticket dataUsingEncoding:NSUTF8StringEncoding]}] options:@{UIPasteboardOptionLocalOnly:@YES,UIPasteboardOptionExpirationDate:[NSDate dateWithTimeIntervalSinceNow:90]}];
+ if(![LXApplications openBundle:application[@"bundle"]]) LXAlert(parent,@"Automatic launch is unavailable. Open the selected app from Home Screen now; the Agent will capture its loaded methods and return to Atlas. If it does not return, switch back and check the status.");
+}
+- (void)showAnalysisIfReady {
+ NSDictionary *job=_controller.analysis;if(!job || UIApplication.sharedApplication.applicationState!=UIApplicationStateActive || [job[@"requestID"] isEqual:_shownAnalysis]) return;
+ if(![@[@"complete",@"failed"] containsObject:job[@"status"]]) return;_shownAnalysis=job[@"requestID"];
+ NSData *ticketData=[UIPasteboard.generalPasteboard dataForPasteboardType:LXAnalysisPasteboardType(job[@"bundle"])];NSDictionary *ticket=LXReadAnalysisTicket([[NSString alloc] initWithData:ticketData encoding:NSUTF8StringEncoding],job[@"bundle"],NSDate.date.timeIntervalSince1970);if([ticket[@"requestID"] isEqual:job[@"requestID"]]) UIPasteboard.generalPasteboard.items=@[];
+ if([job[@"status"] isEqual:@"failed"]) { LXAlert(_root.navigationController.topViewController,job[@"detail"]);return; }
+ NSDictionary *catalog=[_controller.store stateForBundle:job[@"bundle"]][@"runtimeCatalog"];
+ [self capturedCatalog:catalog parent:_root.navigationController.topViewController];
+#if LX_CONTROLLER_AUTOMATION
+ [self writeLaunchTest];
+#endif
+}
+#if LX_CONTROLLER_AUTOMATION
+- (void)writeLaunchTest {
+ if(![NSProcessInfo.processInfo.arguments containsObject:@"--lx-test-launch-analysis"] || ![@[@"complete",@"failed"] containsObject:_controller.analysis[@"status"]]) return;
+ NSDictionary *catalog=[_controller.store stateForBundle:_controller.analysis[@"bundle"]][@"runtimeCatalog"] ?: @{};
+ NSData *data=[NSJSONSerialization dataWithJSONObject:@{@"analysis":_controller.analysis,@"catalog":catalog,@"returned":@(_analysisReturnReceived),@"foreground":@(UIApplication.sharedApplication.applicationState==UIApplicationStateActive),@"visibleTitle":_root.navigationController.topViewController.title ?: @""} options:NSJSONWritingPrettyPrinted error:nil];
+ NSAssert(![[[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] containsString:_controller.token],@"Launch evidence must not contain authentication key");
+ NSURL *documents=[NSFileManager.defaultManager URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask].firstObject;[data writeToURL:[documents URLByAppendingPathComponent:@"launch-analysis-test.json"] atomically:YES];
+}
+#endif
+- (void)capturedCatalog:(NSDictionary *)catalog parent:(UIViewController *)parent {
+ if(!catalog) { LXAlert(parent,@"No saved runtime capture. Choose Analyze app first.");return; }
+ LXBrowser *view=[LXBrowser new];view.title=@"Captured Runtime Loaded";NSMutableArray *rows=[NSMutableArray new];NSDictionary *metadata=catalog[@"metadata"];
+ [rows addObject:@{@"title":[NSString stringWithFormat:@"%@ classes · %@ methods",metadata[@"classCount"],metadata[@"methodCount"]],@"subtitle":[NSString stringWithFormat:@"Captured %@ · %@",[NSDate dateWithTimeIntervalSince1970:[metadata[@"capturedAt"] doubleValue]], [metadata[@"partial"] boolValue]?@"Partial — see diagnostics":@"App bundle snapshot"],@"action":@"info"}];
+ for(NSDictionary *image in catalog[@"images"]) [rows addObject:@{@"title":image[@"name"],@"subtitle":[NSString stringWithFormat:@"%lu classes · Runtime Loaded at capture",(unsigned long)[image[@"classes"] count]],@"image":image}];view.rows=rows;__weak LXBrowser *weak=view;
+ view.selected=^(NSDictionary *row) {
+  if([row[@"action"] isEqual:@"info"]) { LXShowJSON(weak,@"Capture counts / diagnostics",metadata);return; }
+  NSDictionary *image=row[@"image"];LXBrowser *classes=[LXBrowser new];classes.title=image[@"name"];NSMutableArray *classRows=[NSMutableArray new];
+  for(NSDictionary *cls in image[@"classes"]) [classRows addObject:@{@"title":cls[@"name"],@"subtitle":[NSString stringWithFormat:@"%lu methods · superclass %@",(unsigned long)[cls[@"methods"] count],cls[@"superclass"]],@"class":cls}];
+  if(!classRows.count) [classRows addObject:@{@"title":@"No Objective-C classes in this image",@"subtitle":@"See capture diagnostics; Swift-only/native code may expose none",@"enabled":@NO}];classes.rows=classRows;__weak LXBrowser *weakClasses=classes;
+  classes.selected=^(NSDictionary *item) { [self methods:item[@"class"][@"methods"] bundle:catalog[@"bundle"] session:nil parent:weakClasses]; };
+  [weak.navigationController pushViewController:classes animated:YES];
+ };[parent.navigationController pushViewController:view animated:YES];
+}
 - (void)pair { UIPasteboard.generalPasteboard.string=_controller.token;LXAlert(_root,[NSString stringWithFormat:@"Session token copied:\n%@\n\nIn target app, tap three times with three fingers and paste token. Return here promptly to activate. Background execution is finite; suspension disconnects the Agent and disables interactive hooks. Authorized launch patches may remain active.",_controller.token]); }
 - (void)reloadApplications {
  dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY,0),^{ NSString *failure=nil;NSArray *apps=[LXApplications installed:&failure];dispatch_async(dispatch_get_main_queue(),^{ self->_installed=apps;self->_inventoryFailure=failure;[self refresh];
 #if LX_CONTROLLER_AUTOMATION
+ if([NSProcessInfo.processInfo.arguments containsObject:@"--lx-test-launch-analysis"] && !self->_automationLaunchStarted) { for(NSDictionary *application in apps) if([application[@"bundle"] isEqual:@"jp.league.runtimeatlas.fixture"]) { self->_automationLaunchStarted=YES;[self startAnalysis:application parent:self->_root];break; } }
  if([NSProcessInfo.processInfo.arguments containsObject:@"--lx-test-inventory"]) {
   dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY,0),^{ NSDictionary *analysis=@{};for(NSDictionary *app in apps) if([app[@"bundle"] isEqual:@"jp.league.runtimeatlas.fixture"]) { analysis=[[LXStaticAnalyzer new] analyzeBundle:app[@"bundlePath"]];break; }
    NSURL *documents=[NSFileManager.defaultManager URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask].firstObject;NSData *data=[NSJSONSerialization dataWithJSONObject:@{@"applications":apps,@"failure":failure ?: @"",@"static":analysis} options:NSJSONWritingPrettyPrinted error:nil];[data writeToURL:[documents URLByAppendingPathComponent:@"inventory-test.json"] atomically:YES];
@@ -39,14 +94,18 @@
   NSMutableDictionary *row=[@{@"title":app[@"name"],@"subtitle":[NSString stringWithFormat:@"%@ · %@",bundle,connected?(connected.active?@"Agent Active":@"Agent Connected"):@"Installed · Agent Offline"],@"application":app} mutableCopy];if(connected) row[@"session"]=connected;[rows addObject:row];[seen addObject:bundle];
  }
  for(LXSession *s in _controller.sessions) if(![seen containsObject:s.identity[@"bundle"]]) [rows addObject:@{@"title":s.identity[@"bundle"],@"subtitle":[NSString stringWithFormat:@"Agent %@ · PID %@",s.active?@"Active":@"Connected",s.identity[@"pid"]],@"session":s}];
+ NSDictionary *job=_controller.analysis;if([@[@"waiting",@"capturing"] containsObject:job[@"status"]]) [rows insertObject:@{@"title":[@"Analyzing " stringByAppendingString:job[@"bundle"]],@"subtitle":job[@"detail"],@"enabled":@NO} atIndex:0];
  if(!_installed.count) [rows addObject:@{@"title":@"Connect an app manually",@"subtitle":_inventoryFailure ?: @"Installed-app inventory is empty",@"action":@"manualPair"}];
  _root.rows=rows;
  if(!rows.count) { UILabel *label=[UILabel new];label.text=_inventoryFailure ?: @"No installed target applications found";label.numberOfLines=0;label.textAlignment=NSTextAlignmentCenter;label.textColor=UIColor.secondaryLabelColor;label.font=[UIFont systemFontOfSize:15];_root.tableView.backgroundView=label; }else _root.tableView.backgroundView=nil;
 }
 - (void)installedTarget:(NSDictionary *)application {
  NSString *bundle=application[@"bundle"];LXBrowser *menu=[LXBrowser new];menu.title=application[@"name"];
- menu.rows=@[@{@"title":@"Analyze installed bundle",@"subtitle":@"Static Only · no running process required",@"action":@"static"},@{@"title":@"Enable analysis / open app",@"subtitle":@"Pair Agent, then activate from this app",@"action":@"open"},@{@"title":@"Saved patches / settings",@"subtitle":@"Available while Agent is offline",@"action":@"saved"},@{@"title":@"Export saved JSON",@"subtitle":@"Saved settings, patches and history",@"action":@"export"}];
+ menu.rows=@[@{@"title":@"Analyze app / return to Atlas",@"subtitle":@"Open app → capture loaded methods → show saved results",@"action":@"runtimeCapture"},@{@"title":@"Live Agent controls",@"subtitle":@"Runtime browsing, hooks, logs and launch policy",@"action":@"controls"},@{@"title":@"Saved runtime analysis",@"subtitle":@"Browse captured methods while the target is offline",@"action":@"catalog"},@{@"title":@"Analyze installed bundle",@"subtitle":@"Static Only · no running process required",@"action":@"static"},@{@"title":@"Enable analysis / open app",@"subtitle":@"Pair Agent, then activate from this app",@"action":@"open"},@{@"title":@"Saved patches / settings",@"subtitle":@"Available while Agent is offline",@"action":@"saved"},@{@"title":@"Export saved JSON",@"subtitle":@"Saved settings, patches and history",@"action":@"export"}];
  __weak LXBrowser *weakMenu=menu;menu.selected=^(NSDictionary *row) {
+  if([row[@"action"] isEqual:@"controls"]) { LXSession *session=nil;for(LXSession *candidate in self->_controller.sessions) if([candidate.identity[@"bundle"] isEqual:bundle]) session=candidate;if(session) [self target:session];else LXAlert(weakMenu,@"No live Agent connection. Use Enable analysis / open app for manual pairing. Saved runtime results remain browsable.");return; }
+  if([row[@"action"] isEqual:@"runtimeCapture"]) { [self startAnalysis:application parent:weakMenu];return; }
+  if([row[@"action"] isEqual:@"catalog"]) { [self capturedCatalog:[self->_controller.store stateForBundle:bundle][@"runtimeCatalog"] parent:weakMenu];return; }
   if([row[@"action"] isEqual:@"static"]) {
    NSString *path=application[@"bundlePath"];if(!path.length) { LXAlert(weakMenu,@"LaunchServices did not provide a bundle path. Connect the Agent to analyze its own bundle.");return; }
    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY,0),^{ NSDictionary *result;@try { result=[[LXStaticAnalyzer new] analyzeBundle:path]; } @catch(NSException *exception) { result=@{@"images":@[],@"errors":@[@{@"code":@"static_exception",@"detail":exception.name}],@"provenance":@"Static Only"}; }

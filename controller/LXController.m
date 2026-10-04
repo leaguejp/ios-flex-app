@@ -1,12 +1,77 @@
 #import "LXController.h"
 #import "../shared/LXProtocol.h"
 #import "../shared/LXAuth.h"
+#import "../shared/LXLaunch.h"
 @implementation LXSession
 - (instancetype)init { if((self=[super init])) _pending=[NSMutableDictionary new];return self; }
 @end
-@implementation LXController { LXListener *_listener;NSMutableArray *_sessions;NSUInteger _connections; }
+@implementation LXController { LXListener *_listener;NSMutableArray *_sessions;NSUInteger _connections;NSMutableDictionary *_analysis;NSMutableArray *_catalogImages;NSMutableDictionary *_catalogClasses;NSUInteger _catalogBytes; }
 - (instancetype)init { if((self=[super init])) { _sessions=[NSMutableArray new];_store=[LXStore new];_token=LXNewToken(); }return self; }
 - (NSArray *)sessions { return [_sessions copy]; }
+- (NSDictionary *)analysis { return [_analysis copy]; }
+- (NSString *)prepareAnalysisForBundle:(NSString *)bundle {
+ if([_analysis[@"status"] isEqual:@"waiting"] || [_analysis[@"status"] isEqual:@"capturing"]) return nil;
+ NSString *identifier=NSUUID.UUID.UUIDString;_analysis=[@{@"bundle":bundle,@"requestID":identifier,@"status":@"waiting",@"detail":@"Waiting for target Agent. If nothing appears, return to Atlas and check tweak injection."} mutableCopy];
+ if(self.changed) self.changed();
+ dispatch_after(dispatch_time(DISPATCH_TIME_NOW,25*NSEC_PER_SEC),dispatch_get_main_queue(),^{ if([self->_analysis[@"requestID"] isEqual:identifier] && [@[@"waiting",@"capturing"] containsObject:self->_analysis[@"status"]]) [self cancelAnalysis:@"Analysis did not complete within the background window. Check Agent injection/paste permission, then retry. Captured methods were not replaced with an empty success result."]; });
+ return LXAnalysisTicket(bundle,self.token,identifier);
+}
+- (void)cancelAnalysis:(NSString *)reason { if(!_analysis) return;if(![@[@"waiting",@"capturing"] containsObject:_analysis[@"status"]]) return;_analysis[@"status"]=@"failed";_analysis[@"detail"]=reason;_catalogImages=nil;_catalogClasses=nil;if(self.changed) self.changed(); }
+- (BOOL)analysisMatches:(LXSession *)session request:(NSString *)request {
+ return [_analysis[@"requestID"] isEqual:request] && [_analysis[@"bundle"] isEqual:session.identity[@"bundle"]] && [_analysis[@"status"] isEqual:@"capturing"];
+}
+- (void)finishAnalysis:(LXSession *)session request:(NSString *)request error:(NSString *)error {
+ if(![self analysisMatches:session request:request]) return;
+ if(error) [self cancelAnalysis:error];
+ else {
+  NSDictionary *catalog=@{@"metadata":_analysis[@"metadata"],@"images":_catalogImages,@"bundle":_analysis[@"bundle"],@"requestID":request,@"pid":session.identity[@"pid"]};
+  NSString *reason=LXRuntimeCatalogReason(catalog);if(reason) { [self finishAnalysis:session request:request error:reason];return; }
+  NSMutableDictionary *state=[[self.store stateForBundle:session.identity[@"bundle"]] mutableCopy];state[@"runtimeCatalog"]=catalog;
+  if(![self.store save:state bundle:session.identity[@"bundle"]]) [self cancelAnalysis:@"Runtime results could not be saved. Previous results are retained."];
+  else { _analysis[@"status"]=@"complete";_analysis[@"detail"]=@"Runtime results saved";if(self.changed) self.changed(); }
+ }
+ [self request:@"analysisReturn" payload:@{@"requestID":request} session:session completion:^(NSDictionary *response) { if(response[@"error"] && response[@"error"]!=NSNull.null) { self->_analysis[@"returnWarning"]=@"Automatic return failed; switch back to Atlas manually.";if(self.changed) self.changed(); } }];
+}
+- (void)capturePage:(LXSession *)session request:(NSString *)request offset:(NSUInteger)offset {
+ if(![self analysisMatches:session request:request]) return;
+ [self request:@"catalogPage" payload:@{@"captureID":_analysis[@"metadata"][@"captureID"],@"offset":@(offset)} session:session completion:^(NSDictionary *response) {
+  if(![self analysisMatches:session request:request]) return;
+  if(response[@"error"]!=NSNull.null) { [self finishAnalysis:session request:request error:response[@"error"][@"detail"]];return; }
+  NSDictionary *page=response[@"payload"];
+  if([page[@"total"] unsignedIntegerValue]!=[self->_analysis[@"metadata"][@"total"] unsignedIntegerValue]) { [self finishAnalysis:session request:request error:@"Capture total changed during transfer"];return; }
+  for(NSDictionary *record in page[@"records"]) {
+   NSDictionary *data=record[@"data"];NSString *kind=record[@"kind"];
+   self->_catalogBytes+=[NSJSONSerialization dataWithJSONObject:record options:0 error:nil].length;
+   if(self->_catalogBytes>8*1024*1024) { [self finishAnalysis:session request:request error:@"Capture transfer exceeded 8 MiB"];return; }
+   if([kind isEqual:@"image"]) { NSMutableDictionary *image=[data mutableCopy];image[@"classes"]=[NSMutableArray new];image[@"bundle"]=session.identity[@"bundle"];[self->_catalogImages addObject:image]; }
+   else if([kind isEqual:@"class"]) {
+    NSMutableDictionary *owner=nil;for(NSMutableDictionary *image in self->_catalogImages) if([image[@"path"] isEqual:data[@"image"]]) owner=image;
+    if(!owner || self->_catalogClasses[data[@"name"]]) { [self finishAnalysis:session request:request error:@"Invalid class/image association"];return; }
+    NSMutableDictionary *cls=[data mutableCopy];cls[@"methods"]=[NSMutableArray new];[owner[@"classes"] addObject:cls];self->_catalogClasses[data[@"name"]]=cls;
+   } else {
+    NSMutableDictionary *cls=self->_catalogClasses[data[@"class"]];
+    if(!cls || ![cls[@"image"] isEqual:data[@"image"]]) { [self finishAnalysis:session request:request error:@"Invalid method/class association"];return; }
+    [cls[@"methods"] addObject:data];
+   }
+  }
+  NSUInteger next=[page[@"next"] unsignedIntegerValue];self->_analysis[@"received"]=@(next);if(self.changed) self.changed();
+  if(next<[page[@"total"] unsignedIntegerValue]) [self capturePage:session request:request offset:next];else [self finishAnalysis:session request:request error:nil];
+ }];
+}
+- (void)beginAnalysis:(LXSession *)session {
+ NSString *request=_analysis[@"requestID"];
+ if(![_analysis[@"status"] isEqual:@"waiting"] || ![session.identity[@"analysisRequestID"] isEqual:request] || ![session.identity[@"bundle"] isEqual:_analysis[@"bundle"]]) return;
+ _analysis[@"status"]=@"capturing";_analysis[@"detail"]=@"Capturing loaded Objective-C methods";_catalogImages=[NSMutableArray new];_catalogClasses=[NSMutableDictionary new];_catalogBytes=0;if(self.changed) self.changed();
+ [self request:@"activate" payload:@{} session:session completion:^(NSDictionary *response) {
+  if(![self analysisMatches:session request:request]) return;
+  if(response[@"error"]!=NSNull.null) { [self finishAnalysis:session request:request error:response[@"error"][@"detail"]];return; }
+  [self request:@"catalogStart" payload:@{} session:session completion:^(NSDictionary *start) {
+   if(![self analysisMatches:session request:request]) return;
+   if(start[@"error"]!=NSNull.null) { [self finishAnalysis:session request:request error:start[@"error"][@"detail"]];return; }
+   self->_analysis[@"metadata"]=start[@"payload"];[self capturePage:session request:request offset:0];
+  }];
+ }];
+}
 - (BOOL)start:(NSError **)error {
  _listener=[LXListener new];__weak LXController *weak=self;
  _listener.accepted=^(LXChannel *channel) { dispatch_async(dispatch_get_main_queue(),^{ [weak accept:channel]; }); };
@@ -31,7 +96,7 @@
   if(!s.authenticated) {
    if(![m[@"command"] isEqual:@"helloFinish"] || !LXProofMatches(LXProof(weak.token,@"client",s.challenge),m[@"payload"][@"proof"])) { [s.channel close];return; }
    s.authenticated=YES;s.challenge=nil;LXController *controller=weak;if(!controller) { [s.channel close];return; }[controller->_sessions addObject:s];handshake=nil;
-   [s.channel send:LXMessage(@"helloAck",@{})];if(controller.changed) controller.changed();return;
+   [s.channel send:LXMessage(@"helloAck",@{})];if(controller.changed) controller.changed();[controller beginAnalysis:s];return;
   }
   if([m[@"command"] isEqual:@"heartbeat"]) { [s.channel send:LXMessage(@"helloAck",@{})];return; }
   NSString *response=m[@"responseID"];void (^callback)(NSDictionary *)=s.pending[response];if(!callback) return;
@@ -54,6 +119,7 @@
    NSString *reason=[response[@"command"] isEqual:command]?LXResultReason(command,response[@"payload"],payload):@"Response command differs from request";
    if(reason) { NSMutableDictionary *invalid=[response mutableCopy];invalid[@"error"]=LXError(@"bad_response",reason);invalid[@"payload"]=@{};completion(invalid);return; }
   }
+  if([@[@"catalogStart",@"catalogPage",@"analysisReturn"] containsObject:command]) { completion(response);return; }
   if(response[@"error"]==NSNull.null) {
    if([command isEqual:@"activate"]) s.active=YES;if([command isEqual:@"deactivate"]) s.active=NO;
    NSString *bundle=s.identity[@"bundle"];NSMutableDictionary *state=[[weak.store stateForBundle:bundle] mutableCopy];

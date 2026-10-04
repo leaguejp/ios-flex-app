@@ -33,5 +33,7 @@ int main(void) { @autoreleasepool {
  checkRejected(controller,@"classes",@{@"classes":@[],@"next":@0,@"total":@200});
  checkRejected(controller,@"images",@{@"images":@[@{@"name":@"image",@"path":@"image",@"provenance":@"Static Only"}]});
  checkRejected(controller,@"logs",@{@"logs":@[@{@"hook":@"hook",@"class":@"class",@"selector":@"selector",@"encoding":@"v@:",@"time":@1,@"thread":@1,@"durationNs":@1,@"arguments":NSNull.null}]});
+ checkRejected(controller,@"catalogPage",@{@"captureID":@"not-requested",@"next":@1,@"total":@1,@"records":@[]});
+ assert([store save:@{@"runtimeCatalog":NSNull.null} bundle:bundle]);assert(![store stateForBundle:bundle][@"runtimeCatalog"]);
  puts("Store/Controller: offline scalar patch save/reload/export, unsupported bundle/signature/range rejection; malformed saved JSON, bounded reads, malformed result collections/provenance and nonadvancing pagination rejected without exceptions");
  }return 0; }
