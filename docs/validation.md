@@ -2,6 +2,10 @@
 
 Recorded 2026-10-04 JST. Build source revision: `39522c55c4669eab1715a734136e5cb4c13a4e71`. [Final source build run 37158787269](https://github.com/leaguejp/ios-flex-app/actions/runs/37158787269): **both jobs SUCCESS**. Documentation/evidence-only follow-up does not change the tested source.
 
+## Latest 0.2.0 workflow status: NOT VERIFIED
+
+The opening source/run above is the last fully validated 0.1.0 implementation. New launch/capture/return source and the explicit background-window fix are pushed, but the final build/UI test could not run because GitHub rejected jobs before startup for billing/spending-limit reasons. An intermediate 0.2.0 build passed compile/package/host tests, while its new return-flow test failed. See [detailed current status](evidence/launch-workflow-status.md). No final corrected 0.2.0 deb is claimed as validated.
+
 ## Environment and commands
 
 Windows PowerShell/Python 3.12.9 workspace and GitHub remote were empty; main initialized. WSL Ubuntu cannot start (`HCS_E_SERVICE_NOT_AVAILABLE`); no local clang/iOS SDK. Present-device query found no iPhone/Apple Mobile device and no idevice/iproxy tools. No remote device endpoint or provisioning was configured. macOS CI performed executable Objective-C tests and iOS build.
