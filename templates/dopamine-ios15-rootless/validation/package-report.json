@@ -1,0 +1,88 @@
+{
+  "package": {
+    "Package": "com.example.dopaminetemplate",
+    "Name": "Dopamine Template Example",
+    "Description": "Minimal rootless tweak with a Settings preference bundle",
+    "Maintainer": "Your Name",
+    "Author": "Your Name",
+    "Section": "Tweaks",
+    "Depends": "firmware (>= 15.5), ellekit, preferenceloader, ws.hbang.common (>= 2.0)",
+    "Architecture": "iphoneos-arm64",
+    "Version": "0.1.0",
+    "Installed-Size": "344"
+  },
+  "members": [
+    "debian-binary",
+    "control.tar.gz",
+    "data.tar.gz"
+  ],
+  "compression": "gzip",
+  "tar": "ustar",
+  "binaries": {
+    "tweak": [
+      {
+        "architecture": "arm64",
+        "subtype": 0,
+        "minimum_ios": "15.5",
+        "dependencies": [
+          "/usr/lib/libobjc.A.dylib",
+          "/System/Library/Frameworks/Foundation.framework/Foundation",
+          "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+          "/System/Library/Frameworks/UIKit.framework/UIKit",
+          "@rpath/Cephei.framework/Cephei",
+          "/usr/lib/libSystem.B.dylib",
+          "@rpath/CydiaSubstrate.framework/CydiaSubstrate"
+        ],
+        "code_signature_command": true
+      },
+      {
+        "architecture": "arm64e",
+        "subtype": 2,
+        "minimum_ios": "15.5",
+        "dependencies": [
+          "/usr/lib/libobjc.A.dylib",
+          "/System/Library/Frameworks/Foundation.framework/Foundation",
+          "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+          "/System/Library/Frameworks/UIKit.framework/UIKit",
+          "@rpath/Cephei.framework/Cephei",
+          "/usr/lib/libSystem.B.dylib",
+          "@rpath/CydiaSubstrate.framework/CydiaSubstrate"
+        ],
+        "code_signature_command": true
+      }
+    ],
+    "preferences": [
+      {
+        "architecture": "arm64",
+        "subtype": 0,
+        "minimum_ios": "15.5",
+        "dependencies": [
+          "/usr/lib/libobjc.A.dylib",
+          "/System/Library/Frameworks/Foundation.framework/Foundation",
+          "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+          "/System/Library/Frameworks/UIKit.framework/UIKit",
+          "/System/Library/PrivateFrameworks/Preferences.framework/Preferences",
+          "@rpath/Cephei.framework/Cephei",
+          "/usr/lib/libSystem.B.dylib"
+        ],
+        "code_signature_command": true
+      },
+      {
+        "architecture": "arm64e",
+        "subtype": 2,
+        "minimum_ios": "15.5",
+        "dependencies": [
+          "/usr/lib/libobjc.A.dylib",
+          "/System/Library/Frameworks/Foundation.framework/Foundation",
+          "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+          "/System/Library/Frameworks/UIKit.framework/UIKit",
+          "/System/Library/PrivateFrameworks/Preferences.framework/Preferences",
+          "@rpath/Cephei.framework/Cephei",
+          "/usr/lib/libSystem.B.dylib"
+        ],
+        "code_signature_command": true
+      }
+    ]
+  },
+  "physical_settings_and_injection_tested": false
+}

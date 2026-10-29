@@ -1,0 +1,42 @@
+{
+  "var/jb/Library/MobileSubstrate/DynamicLibraries/ExampleTweak.dylib": [
+    {
+      "architecture": "arm64",
+      "rpaths": [
+        "/var/jb/Library/Frameworks",
+        "/var/jb/usr/lib",
+        "@loader_path/.jbroot/Library/Frameworks",
+        "@loader_path/.jbroot/usr/lib"
+      ]
+    },
+    {
+      "architecture": "arm64e",
+      "rpaths": [
+        "/var/jb/Library/Frameworks",
+        "/var/jb/usr/lib",
+        "@loader_path/.jbroot/Library/Frameworks",
+        "@loader_path/.jbroot/usr/lib"
+      ]
+    }
+  ],
+  "var/jb/Library/PreferenceBundles/ExamplePrefs.bundle/ExamplePrefs": [
+    {
+      "architecture": "arm64",
+      "rpaths": [
+        "/var/jb/Library/Frameworks",
+        "/var/jb/usr/lib",
+        "@loader_path/.jbroot/Library/Frameworks",
+        "@loader_path/.jbroot/usr/lib"
+      ]
+    },
+    {
+      "architecture": "arm64e",
+      "rpaths": [
+        "/var/jb/Library/Frameworks",
+        "/var/jb/usr/lib",
+        "@loader_path/.jbroot/Library/Frameworks",
+        "@loader_path/.jbroot/usr/lib"
+      ]
+    }
+  ]
+}

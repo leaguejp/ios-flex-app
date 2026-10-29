@@ -95,3 +95,7 @@ Updating to 0.2.3: reinstall the matching scheme deb, fully quit Atlas and the t
 Current 0.2.3 verification status: [run 37181607547](https://github.com/leaguejp/ios-flex-app/actions/runs/37181607547) passed both complete jobs, package/host tests and the rootless foreground-result UI test (1 test, 0 failures; 37 classes / 262 methods). Physical jailbreak validation remains outstanding. See [evidence](docs/evidence/launch-workflow-status.md).
 
 [Flex beta56 reference audit and changes](docs/flex56-comparison.md). Failed saves now display the actual stage, OS error and storage path; TestTarget shows Agent loaded/NOT LOADED.
+
+### 他のtweak開発に使うテンプレート
+
+[iOS 15.5 / Dopamine rootless 開発テンプレート](templates/dopamine-ios15-rootless/README.md)に、arm64/arm64eとdeb architectureの区別、Settingsへの設定表示、対象アプリへの注入条件、公開tweakの調査記録、コピーして使えるTheosプロジェクトをまとめています。
