@@ -1,0 +1,9 @@
+Package: com.example.dopaminetemplate
+Name: Dopamine Template Example
+Version: 0.1.0
+Architecture: iphoneos-arm64
+Description: Minimal rootless tweak with a Settings preference bundle
+Maintainer: Your Name
+Author: Your Name
+Section: Tweaks
+Depends: firmware (>= 15.5), ellekit, preferenceloader, ws.hbang.common (>= 2.0)

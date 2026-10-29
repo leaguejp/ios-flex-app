@@ -1,0 +1,32 @@
+name: Build reusable Dopamine template
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'templates/dopamine-ios15-rootless/**'
+      - 'tests/test_tweak_template.py'
+      - '.github/workflows/tweak-template.yml'
+permissions:
+  contents: read
+jobs:
+  template:
+    runs-on: macos-15
+    timeout-minutes: 15
+    env:
+      THEOS: ${{ github.workspace }}/.tools/template-theos
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install ldid
+      - name: Bootstrap pinned Theos and official Xcode SDK
+        run: bash templates/dopamine-ios15-rootless/tools/bootstrap.sh
+      - name: Source and package validator tests
+        run: python3 -m unittest discover -s tests -p test_tweak_template.py -v
+      - name: Build both CPU slices and inspect actual deb
+        run: bash templates/dopamine-ios15-rootless/tools/build.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dopamine-ios15-rootless-template
+          path: |
+            templates/dopamine-ios15-rootless/artifacts/
+            templates/dopamine-ios15-rootless/packages/

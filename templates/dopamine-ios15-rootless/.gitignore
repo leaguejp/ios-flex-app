@@ -1,0 +1,6 @@
+.theos/
+.tools/
+packages/
+artifacts/
+__pycache__/
+*.pyc
