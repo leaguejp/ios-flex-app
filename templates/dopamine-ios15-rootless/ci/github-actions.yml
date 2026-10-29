@@ -1,0 +1,22 @@
+name: Build Dopamine rootless tweak
+on: [push, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 15
+    env:
+      THEOS: ${{ github.workspace }}/.tools/theos
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install ldid
+      - run: bash tools/bootstrap.sh
+      - run: bash tools/build.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rootless-tweak
+          path: |
+            artifacts/
+            packages/
